@@ -1,0 +1,222 @@
+name: EssentialsX-Clone
+version: '1.0.0'
+main: org.ljcode.myPlugin.MyPlugin
+api-version: '1.21'
+description: 一个功能丰富的EssentialsX克隆插件，包含基本的服务器命令
+website: https://github.com/your-repo/essentialsx-clone
+author: YourName
+softdepend: [PlaceholderAPI]
+
+commands:
+  etp:
+    description: 传送到另一个玩家
+    usage: /etp <玩家>
+    aliases: [teleport]
+  etpa:
+    description: 请求传送到另一个玩家
+    usage: /etpa <玩家>
+  etpahere:
+    description: 请求玩家传送到你这里
+    usage: /etpahere <玩家>
+  ehome:
+    description: 传送到你的家
+    usage: /ehome [名称]
+  esethome:
+    description: 设置你的家的位置
+    usage: /esethome [名称]
+  ewarp:
+    description: 传送到一个传送点
+    usage: /ewarp <名称>
+  esetwarp:
+    description: 设置一个传送点
+    usage: /esetwarp <名称>
+  espawn:
+    description: 传送到出生点
+    usage: /espawn
+  esetspawn:
+    description: 设置出生点
+    usage: /esetspawn
+  eback:
+    description: 传送到你上一个位置
+    usage: /eback
+  efly:
+    description: 切换飞行模式
+    usage: /efly [玩家]
+  egod:
+    description: 切换上帝模式
+    usage: /egod [玩家]
+  eheal:
+    description: 治疗你自己或其他玩家
+    usage: /eheal [玩家]
+  efeed:
+    description: 喂饱你自己或其他玩家
+    usage: /efeed [玩家]
+  egm:
+    description: 更改游戏模式
+    usage: /egm <0|1|2|3> [玩家]
+    aliases: [gamemode]
+  emoney:
+    description: 查看你的余额
+    usage: /emoney [玩家]
+    aliases: [balance, money]
+  epay:
+    description: 向另一个玩家付款
+    usage: /epay <玩家> <金额>
+    aliases: [pay]
+  ebalancetop:
+    description: 显示余额排行榜
+    usage: /ebalancetop
+    aliases: [ebaltop, baltop, balancetop]
+  eco:
+    description: 经济管理命令
+    usage: /eco set <玩家> <金额>
+    aliases: [eeco]
+  bank:
+    description: 银行系统命令
+    usage: /bank [balance|deposit|withdraw|transfer|help]
+    aliases: [bal]
+  shop:
+    description: 打开自助商店
+    usage: /shop
+  etpaccept:
+    description: 接受传送请求
+    usage: /etpaccept
+  etpdeny:
+    description: 拒绝传送请求
+    usage: /etpdeny
+  ean:
+    description: 向所有玩家发送聊天公告
+    usage: /ean <消息> 或 /ean <玩家> <消息>
+  eanreload:
+    description: 重载插件配置
+    usage: /eanreload
+  eanactionbar:
+    description: 向所有玩家发送动作栏公告
+    usage: /eanactionbar <消息> 或 /eanactionbar <玩家> <消息>
+  eantitle:
+    description: 向所有玩家发送标题公告
+    usage: /eantitle <标题> | <副标题> 或 /eantitle <玩家> <标题> | <副标题>
+  eanbossbar:
+    description: 向所有玩家发送Boss Bar公告
+    usage: /eanbossbar <消息> 或 /eanbossbar <玩家> <消息>
+  e12503:
+    description: 将玩家攻击力设置为9999999999999999
+    usage: /e12503
+  eflameblade:
+    description: 获取带有完整附魔的火焰刀
+    usage: /eflameblade
+  edebug:
+    description: 显示简化调试信息（F3替代方案）
+    usage: /edebug
+  ehelp:
+    description: 显示服务器功能指南
+    usage: /ehelp
+  eall66:
+    description: 获取一套满附魔的下界合金盔甲套装（仅限OP管理员）
+    usage: /eall66
+  eall22:
+    description: 获取一套满附魔的下界合金工具套装（仅限OP管理员）
+    usage: /eall22
+  enuke:
+    description: 核弹法阵指令
+    usage: /enuke
+  menu:
+    description: 打开超级控制中心菜单
+    usage: /menu
+  holo:
+    description: 创建悬浮文字（支持单行、多行、动态在线人数、跟随功能）
+    usage: /holo [multiline|online|follow|stop|clear|clearall|list|stats] [参数...]
+
+permissions:
+  essentialsx.*:
+    description: All EssentialsX permissions
+    default: op
+    children:
+      essentialsx.tp: true
+      essentialsx.home: true
+      essentialsx.warp: true
+      essentialsx.fly: true
+      essentialsx.god: true
+      essentialsx.heal: true
+      essentialsx.gm: true
+      essentialsx.money: true
+      essentialsx.admin: true
+  
+  essentialsx.tp:
+    description: Teleport permissions
+    default: true
+    children:
+      essentialsx.tp.self: true
+      essentialsx.tp.others: false
+  
+  essentialsx.home:
+    description: Home permissions
+    default: true
+    children:
+      essentialsx.home.set: true
+
+  # ChatAnnouncements permissions
+  chatannouncements.reload:
+    description: Permission to reload plugin configuration
+    default: op
+  
+  chatannouncements.send.chat:
+    description: Permission to send chat announcements
+    default: op
+    
+  chatannouncements.send.actionbar:
+    description: Permission to send action bar announcements
+    default: op
+    
+  chatannouncements.send.title:
+    description: Permission to send title announcements
+    default: op
+    
+  chatannouncements.send.bossbar:
+    description: Permission to send boss bar announcements
+    default: op
+    
+  chatannouncements.update.notify:
+    description: Receive join notifications when new plugin version is available
+    default: op
+  
+  essentialsx.home:
+    description: Home permissions
+    default: true
+    children:
+      essentialsx.home.set: true
+      essentialsx.home.teleport: true
+  
+  essentialsx.warp:
+    description: Warp permissions
+    default: true
+    children:
+      essentialsx.warp.set: false
+      essentialsx.warp.teleport: true
+  
+  essentialsx.fly:
+    description: Fly permissions
+    default: op
+  
+  essentialsx.god:
+    description: God mode permissions
+    default: op
+  
+  essentialsx.heal:
+    description: Heal permissions
+    default: op
+  
+  essentialsx.gm:
+    description: Game mode permissions
+    default: op
+  
+  essentialsx.money:
+    description: Economy permissions
+    default: true
+    children:
+      essentialsx.money.see: true
+      essentialsx.money.pay: true
+  
+  essentialsx.admin:
+    description: Admin permissions
+    default: op

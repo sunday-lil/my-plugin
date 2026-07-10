@@ -8,8 +8,8 @@
 # IntelliJ
 out/
 
-# Compiled class file
-*.class
+# Compiled class file - 已移除限制，需要上传 class 文件
+# *.class
 
 # Log file
 *.log
@@ -17,8 +17,8 @@ out/
 # BlueJ files
 *.ctxt
 
-# Package Files #
-*.jar
+# Package Files - 已移除限制，需要上传 jar 包
+# *.jar
 *.war
 *.nar
 *.ear
@@ -95,7 +95,7 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-target/
+# target/ - 已移除限制，需要上传编译产物
 
 pom.xml.tag
 pom.xml.releaseBackup

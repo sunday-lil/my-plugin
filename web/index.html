@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EssentialsX-Clone 配置面板</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #444;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 250px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"], input[type="number"], input[type="checkbox"], select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 200px;
+        }
+        input[type="checkbox"] {
+            width: auto;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.secondary {
+            background-color: #2196F3;
+        }
+        button.secondary:hover {
+            background-color: #1976D2;
+        }
+        button.danger {
+            background-color: #f44336;
+        }
+        button.danger:hover {
+            background-color: #d32f2f;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .json-display {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>EssentialsX-Clone 配置面板</h1>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="section">
+            <h2>经济系统设置</h2>
+            <div class="form-group">
+                <label for="economy-enabled">启用经济系统:</label>
+                <input type="checkbox" id="economy-enabled">
+            </div>
+            <div class="form-group">
+                <label for="starting-balance">玩家初始资金:</label>
+                <input type="number" id="starting-balance" step="0.01">
+            </div>
+            <div class="form-group">
+                <label for="currency-symbol">货币单位符号:</label>
+                <input type="text" id="currency-symbol">
+            </div>
+            <div class="form-group">
+                <label for="decimal-places">小数位数:</label>
+                <input type="number" id="decimal-places">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>家园系统设置</h2>
+            <div class="form-group">
+                <label for="homes-enabled">启用家园系统:</label>
+                <input type="checkbox" id="homes-enabled">
+            </div>
+            <div class="form-group">
+                <label for="max-homes">普通玩家默认家园数量上限:</label>
+                <input type="number" id="max-homes">
+            </div>
+            <div class="form-group">
+                <label for="max-homes-with-permission">拥有特定权限的玩家家园数量上限:</label>
+                <input type="number" id="max-homes-with-permission">
+            </div>
+            <div class="form-group">
+                <label for="teleport-cooldown">家园传送冷却时间（秒）:</label>
+                <input type="number" id="teleport-cooldown">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>传送点系统设置</h2>
+            <div class="form-group">
+                <label for="warps-enabled">启用传送点系统:</label>
+                <input type="checkbox" id="warps-enabled">
+            </div>
+            <div class="form-group">
+                <label for="max-warps">传送点数量限制（对拥有特定权限的玩家）:</label>
+                <input type="number" id="max-warps">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>传送系统设置</h2>
+            <div class="form-group">
+                <label for="teleport-enabled">启用传送系统:</label>
+                <input type="checkbox" id="teleport-enabled">
+            </div>
+            <div class="form-group">
+                <label for="request-timeout">传送请求超时时间（秒）:</label>
+                <input type="number" id="request-timeout">
+            </div>
+            <div class="form-group">
+                <label for="cooldown">传送冷却时间（秒）:</label>
+                <input type="number" id="cooldown">
+            </div>
+            <div class="form-group">
+                <label for="safety-check">传送安全检查:</label>
+                <input type="checkbox" id="safety-check">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>玩家命令设置</h2>
+            <div class="form-group">
+                <label for="fly-enabled">启用飞行命令:</label>
+                <input type="checkbox" id="fly-enabled">
+            </div>
+            <div class="form-group">
+                <label for="god-enabled">启用上帝模式命令:</label>
+                <input type="checkbox" id="god-enabled">
+            </div>
+            <div class="form-group">
+                <label for="heal-enabled">启用治疗命令:</label>
+                <input type="checkbox" id="heal-enabled">
+            </div>
+            <div class="form-group">
+                <label for="feed-enabled">启用喂食命令:</label>
+                <input type="checkbox" id="feed-enabled">
+            </div>
+            <div class="form-group">
+                <label for="gamemode-enabled">启用游戏模式命令:</label>
+                <input type="checkbox" id="gamemode-enabled">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>聊天与消息设置</h2>
+            <div class="form-group">
+                <label for="chat-prefix">消息通用前缀:</label>
+                <input type="text" id="chat-prefix">
+            </div>
+            <div class="form-group">
+                <label for="color-enabled">启用彩色消息:</label>
+                <input type="checkbox" id="color-enabled">
+            </div>
+            <div class="form-group">
+                <label for="chat-format">聊天格式:</label>
+                <input type="text" id="chat-format">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>登录/退出消息系统</h2>
+            <div class="form-group">
+                <label for="server-name">服务器名称:</label>
+                <input type="text" id="server-name">
+            </div>
+            <div class="form-group">
+                <label for="join-message-enabled">启用登录消息系统:</label>
+                <input type="checkbox" id="join-message-enabled">
+            </div>
+            <div class="form-group">
+                <label for="send-help-guide-on-join">自动发送功能使用指南:</label>
+                <input type="checkbox" id="send-help-guide-on-join">
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <button type="button" onclick="loadLocalConfig()">加载配置文件</button>
+            <button type="button" class="secondary" onclick="saveConfigToFile()">保存配置文件</button>
+            <button type="button" class="secondary" onclick="resetForm()">重置表单</button>
+            <button type="button" class="danger" onclick="showRawConfig()">显示原始配置</button>
+        </div>
+        
+        <div id="raw-config" class="json-display" style="display: none;"></div>
+    </div>
+
+    <script>
+        // 配置对象
+        let config = {};
+        
+        // 页面加载时显示提示信息
+        window.onload = function() {
+            showStatus('请使用"加载配置文件"按钮选择本地config.yml文件', false);
+        };
+        
+        // 显示状态消息
+        function showStatus(message, isSuccess) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (isSuccess ? 'success' : 'error');
+            statusDiv.style.display = 'block';
+            
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 加载本地配置文件
+        function loadLocalConfig() {
+            // 创建文件输入元素
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.yml,.yaml';
+            fileInput.onchange = function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            // 使用js-yaml库解析YAML（如果可用）或简单地尝试解析
+                            // 由于浏览器中没有内置的YAML解析器，我们需要手动解析或使用库
+                            // 这里我们暂时使用一个简单的解析方式
+                            const yamlText = e.target.result;
+                            config = parseYAML(yamlText);
+                            populateForm(config);
+                            showStatus('配置文件加载成功！', true);
+                        } catch (error) {
+                            console.error('解析配置文件时出错:', error);
+                            showStatus('配置文件格式错误: ' + error.message, false);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            fileInput.click();
+        }
+        
+        // 简单的YAML解析器（适用于我们的配置结构）
+        function parseYAML(yamlStr) {
+            const lines = yamlStr.split('\n');
+            const result = {};
+            const stack = [result]; // 用于跟踪嵌套结构
+            
+            for (const line of lines) {
+                // 跳过注释和空行
+                if (line.trim() === '' || line.trim().startsWith('#')) continue;
+                
+                // 检测缩进级别
+                const indentMatch = line.match(/^(\s*)/);
+                const indentLevel = indentMatch ? Math.floor(indentMatch[1].length / 2) : 0; // 假设每2个空格为一级
+                
+                // 获取键值对
+                if (line.includes(':')) {
+                    const parts = line.split(':');
+                    const key = parts[0].trim().replace(/'/g, '').replace(/"/g, ''); // 移除引号
+                    
+                    // 计算当前层级的容器
+                    const currentStackLevel = indentLevel + 1;
+                    while (stack.length > currentStackLevel) {
+                        stack.pop();
+                    }
+                    
+                    if (parts.length > 1) {
+                        let valueStr = parts.slice(1).join(':').trim(); // 处理值中包含冒号的情况
+                        
+                        // 解析值的类型
+                        let value;
+                        if (valueStr.toLowerCase() === 'true') {
+                            value = true;
+                        } else if (valueStr.toLowerCase() === 'false') {
+                            value = false;
+                        } else if (!isNaN(valueStr) && valueStr !== '') {
+                            // 尝试解析数字
+                            value = Number(valueStr);
+                        } else if (valueStr === '') {
+                            // 如果值为空，创建一个新的对象
+                            value = {};
+                            stack.push(value);
+                        } else {
+                            // 字符串值，移除引号
+                            value = valueStr.replace(/^[\'\"]|[\'\"]$/g, '');
+                        }
+                        
+                        // 将值赋给当前层级的对象
+                        const currentObj = stack[stack.length - 1];
+                        currentObj[key] = value;
+                        
+                        // 如果值是对象，推入栈中
+                        if (typeof value === 'object' && value !== null && !Array.isArray(value) && valueStr === '') {
+                            stack.push(value);
+                        }
+                    }
+                }
+            }
+            
+            return result;
+        }
+        
+        // 生成YAML字符串
+        function generateYAML(obj, indentLevel = 0) {
+            let yamlStr = '';
+            const indent = '  '.repeat(indentLevel);
+            
+            for (const [key, value] of Object.entries(obj)) {
+                if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                    yamlStr += `${indent}${key}:\n`;
+                    yamlStr += generateYAML(value, indentLevel + 1);
+                } else {
+                    let formattedValue;
+                    if (typeof value === 'string') {
+                        // 检查是否需要加引号：包含特殊字符时加引号
+                        if (value.includes(': ') || value.includes('\n') || value.includes('#') || 
+                            value.includes('%') || value.includes('&') || value.includes('@') || 
+                            value.includes('*') || value.includes('!') || value.includes('|') || 
+                            value.includes('>') || value.includes('\"') || value.includes('\'') || 
+                            value === '' || value.startsWith('0x') || !isNaN(value) && value.trim() !== '') {
+                            // 对特殊字符进行转义并在引号中包围
+                            const escapedValue = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                            formattedValue = `"${escapedValue}"`;
+                        } else {
+                            formattedValue = value;
+                        }
+                    } else {
+                        formattedValue = value;
+                    }
+                    yamlStr += `${indent}${key}: ${formattedValue}\n`;
+                }
+            }
+            
+            return yamlStr;
+        }
+        
+        // 保存配置到本地文件
+        function saveConfigToFile() {
+            try {
+                const newConfig = collectFormData();
+                const yamlStr = generateYAML(newConfig);
+                
+                // 创建Blob对象
+                const blob = new Blob([yamlStr], { type: 'text/yaml;charset=utf-8' });
+                
+                // 创建下载链接
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'config.yml';
+                document.body.appendChild(a);
+                a.click();
+                
+                // 清理
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showStatus('配置已保存到文件！', true);
+            } catch (error) {
+                console.error('保存配置时出错:', error);
+                showStatus('保存配置失败: ' + error.message, false);
+            }
+        }
+        
+        // 填充表单
+        function populateForm(configData) {
+            // 经济系统设置
+            document.getElementById('economy-enabled').checked = (configData.economy && configData.economy.enabled) || false;
+            document.getElementById('starting-balance').value = (configData.economy && configData.economy['starting-balance']) || 100.0;
+            document.getElementById('currency-symbol').value = (configData.economy && configData.economy['currency-symbol']) || '$';
+            document.getElementById('decimal-places').value = (configData.economy && configData.economy['decimal-places']) || 2;
+            
+            // 家园系统设置
+            document.getElementById('homes-enabled').checked = (configData.homes && configData.homes.enabled) || false;
+            document.getElementById('max-homes').value = (configData.homes && configData.homes['max-homes']) || 5;
+            document.getElementById('max-homes-with-permission').value = (configData.homes && configData.homes['max-homes-with-permission']) || 10;
+            document.getElementById('teleport-cooldown').value = (configData.homes && configData.homes['teleport-cooldown']) || 5;
+            
+            // 传送点系统设置
+            document.getElementById('warps-enabled').checked = (configData.warps && configData.warps.enabled) || false;
+            document.getElementById('max-warps').value = (configData.warps && configData.warps['max-warps']) || 5;
+            
+            // 传送系统设置
+            document.getElementById('teleport-enabled').checked = (configData.teleport && configData.teleport.enabled) || false;
+            document.getElementById('request-timeout').value = (configData.teleport && configData.teleport['request-timeout']) || 60;
+            document.getElementById('cooldown').value = (configData.teleport && configData.teleport['cooldown']) || 5;
+            document.getElementById('safety-check').checked = (configData.teleport && configData.teleport['safety-check']) || true;
+            
+            // 玩家命令设置
+            document.getElementById('fly-enabled').checked = (configData['player-commands'] && configData['player-commands']['fly-enabled']) || true;
+            document.getElementById('god-enabled').checked = (configData['player-commands'] && configData['player-commands']['god-enabled']) || true;
+            document.getElementById('heal-enabled').checked = (configData['player-commands'] && configData['player-commands']['heal-enabled']) || true;
+            document.getElementById('feed-enabled').checked = (configData['player-commands'] && configData['player-commands']['feed-enabled']) || true;
+            document.getElementById('gamemode-enabled').checked = (configData['player-commands'] && configData['player-commands']['gamemode-enabled']) || true;
+            
+            // 聊天与消息设置
+            document.getElementById('chat-prefix').value = (configData.chat && configData.chat.prefix) || '&6[EssentialsX]&r ';
+            document.getElementById('color-enabled').checked = (configData.chat && configData.chat['color-enabled']) || true;
+            document.getElementById('chat-format').value = (configData.chat && configData.chat.format) || '%prefix%&7%player%:&r %message%';
+            
+            // 登录/退出消息系统
+            document.getElementById('server-name').value = (configData['join-message'] && configData['join-message']['server-name']) || 'geek服务器';
+            document.getElementById('join-message-enabled').checked = (configData['join-message'] && configData['join-message'].enabled) || true;
+            document.getElementById('send-help-guide-on-join').checked = (configData['join-message'] && configData['join-message']['send-help-guide-on-join']) || true;
+        }
+        
+        // 从表单收集数据
+        function collectFormData() {
+            return {
+                economy: {
+                    enabled: document.getElementById('economy-enabled').checked,
+                    'starting-balance': parseFloat(document.getElementById('starting-balance').value),
+                    'currency-symbol': document.getElementById('currency-symbol').value,
+                    'decimal-places': parseInt(document.getElementById('decimal-places').value)
+                },
+                homes: {
+                    enabled: document.getElementById('homes-enabled').checked,
+                    'max-homes': parseInt(document.getElementById('max-homes').value),
+                    'max-homes-with-permission': parseInt(document.getElementById('max-homes-with-permission').value),
+                    'teleport-cooldown': parseInt(document.getElementById('teleport-cooldown').value)
+                },
+                warps: {
+                    enabled: document.getElementById('warps-enabled').checked,
+                    'max-warps': parseInt(document.getElementById('max-warps').value)
+                },
+                teleport: {
+                    enabled: document.getElementById('teleport-enabled').checked,
+                    'request-timeout': parseInt(document.getElementById('request-timeout').value),
+                    'cooldown': parseInt(document.getElementById('cooldown').value),
+                    'safety-check': document.getElementById('safety-check').checked
+                },
+                'player-commands': {
+                    'fly-enabled': document.getElementById('fly-enabled').checked,
+                    'god-enabled': document.getElementById('god-enabled').checked,
+                    'heal-enabled': document.getElementById('heal-enabled').checked,
+                    'feed-enabled': document.getElementById('feed-enabled').checked,
+                    'gamemode-enabled': document.getElementById('gamemode-enabled').checked
+                },
+                chat: {
+                    prefix: document.getElementById('chat-prefix').value,
+                    'color-enabled': document.getElementById('color-enabled').checked,
+                    format: document.getElementById('chat-format').value
+                },
+                'join-message': {
+                    'server-name': document.getElementById('server-name').value,
+                    enabled: document.getElementById('join-message-enabled').checked,
+                    'send-help-guide-on-join': document.getElementById('send-help-guide-on-join').checked
+                }
+            };
+        }
+        
+        // 保存配置
+        async function saveConfig() {
+            try {
+                const newConfig = collectFormData();
+                
+                // 在实际实现中，这里会向服务器发送请求保存配置
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newConfig)
+                });
+                
+                if (response.ok) {
+                    showStatus('配置保存成功！', true);
+                } else {
+                    showStatus('保存配置失败: ' + response.statusText, false);
+                }
+            } catch (error) {
+                console.error('保存配置时出错:', error);
+                showStatus('保存配置失败: ' + error.message, false);
+            }
+        }
+        
+        // 重置表单
+        function resetForm() {
+            if (confirm('确定要重置所有表单项吗？')) {
+                loadConfig(); // 重新加载当前配置
+            }
+        }
+        
+        // 显示原始配置
+        function showRawConfig() {
+            const rawConfigDiv = document.getElementById('raw-config');
+            if (rawConfigDiv.style.display === 'none') {
+                rawConfigDiv.textContent = JSON.stringify(config, null, 2);
+                rawConfigDiv.style.display = 'block';
+            } else {
+                rawConfigDiv.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

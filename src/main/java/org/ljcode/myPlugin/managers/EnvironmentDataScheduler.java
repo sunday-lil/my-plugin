@@ -130,49 +130,126 @@ public class EnvironmentDataScheduler {
         }
 
         long startTime = System.currentTimeMillis();
+        boolean calculationValid = false;
+        Map<String, Object> envData = null;
 
-        Player[] players = Bukkit.getOnlinePlayers().toArray(new Player[0]);
-        if (currentPlayerIndex >= players.length) {
-            currentPlayerIndex = 0;
-        }
+        try {
+            Player[] players = Bukkit.getOnlinePlayers().toArray(new Player[0]);
+            if (currentPlayerIndex >= players.length) {
+                currentPlayerIndex = 0;
+            }
 
-        Player targetPlayer = players[currentPlayerIndex];
-        currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+            Player targetPlayer = players[currentPlayerIndex];
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
 
-        Map<String, Object> envData = calculator.calculateEnvironmentData(targetPlayer);
-        envData.put("player_name", targetPlayer.getName());
-        envData.put("timestamp", System.currentTimeMillis());
-        envData.put("request_id", generateRequestId(targetPlayer));
+            // ★ 兜底机制1：计算环境数据
+            envData = calculator.calculateEnvironmentData(targetPlayer);
 
-        String jsonData = buildJsonMessage(envData);
+            // ★ 兜底机制2：验证数据完整性
+            calculationValid = validateEnvironmentData(envData);
 
-        synchronized (latestEnvironmentData) {
-            latestEnvironmentData.clear();
-            latestEnvironmentData.putAll(envData);
-        }
+            if (!calculationValid) {
+                Bukkit.getLogger().warning("[环境数据] 数据验证失败，跳过本次发送 - 玩家: " + targetPlayer.getName());
+                failedSends++;
+                return; // 不发送无效数据
+            }
 
-        String requestId = (String) envData.get("request_id");
-        pendingRequests.put(requestId, System.currentTimeMillis());
+            envData.put("player_name", targetPlayer.getName());
+            envData.put("timestamp", System.currentTimeMillis());
+            envData.put("calculation_time_ms", System.currentTimeMillis() - startTime); // 记录计算耗时
+            envData.put("request_id", generateRequestId(targetPlayer));
 
-        boolean sendSuccess = sendToK10(jsonData);
+            String jsonData = buildJsonMessage(envData);
 
-        long calculationTime = System.currentTimeMillis() - startTime;
-        lastCalculationTime.set(System.currentTimeMillis());
-        totalCalculations++;
+            synchronized (latestEnvironmentData) {
+                latestEnvironmentData.clear();
+                latestEnvironmentData.putAll(envData);
+            }
 
-        if (sendSuccess) {
-            successfulSends++;
-            adjustInterval(calculationTime);
-        } else {
+            String requestId = (String) envData.get("request_id");
+            pendingRequests.put(requestId, System.currentTimeMillis());
+
+            // ★ 兜底机制3：发送前再次检查连接状态
+            boolean sendSuccess = sendToK10(jsonData);
+
+            long calculationTime = System.currentTimeMillis() - startTime;
+            lastCalculationTime.set(System.currentTimeMillis());
+            totalCalculations++;
+
+            if (sendSuccess) {
+                successfulSends++;
+                adjustInterval(calculationTime);
+            } else {
+                failedSends++;
+                handleSendFailure();
+            }
+
+            if (plugin.getConfig().getBoolean("environment.debug-mode", false)) {
+                Bukkit.getLogger().info("[环境数据] ✓ 计算完成 | 耗时: " + calculationTime + "ms | " +
+                        "玩家: " + targetPlayer.getName() + " | " +
+                        "温度: " + envData.get("temperature") + "°C | " +
+                        "当前间隔: " + currentInterval + " ticks");
+            }
+
+        } catch (Exception e) {
+            Bukkit.getLogger().severe("[环境数据] 计算过程异常: " + e.getMessage());
+            e.printStackTrace();
             failedSends++;
             handleSendFailure();
         }
+    }
 
-        if (plugin.getConfig().getBoolean("environment.debug-mode", false)) {
-            Bukkit.getLogger().info("[环境数据] 计算耗时: " + calculationTime + "ms, " +
-                    "玩家: " + targetPlayer.getName() + ", " +
-                    "当前间隔: " + currentInterval + " ticks");
+    /**
+     * ★ 新增：验证环境数据的完整性和合理性
+     * @param data 环境数据
+     * @return 是否有效
+     */
+    private boolean validateEnvironmentData(Map<String, Object> data) {
+        if (data == null || data.isEmpty()) {
+            return false;
         }
+
+        // 检查必需字段是否存在
+        if (!data.containsKey("temperature") || !data.containsKey("humidity") ||
+            !data.containsKey("light") || !data.containsKey("wind_speed")) {
+            Bukkit.getLogger().warning("[环境数据] 缺少必要字段");
+            return false;
+        }
+
+        // 检查温度值是否在合理范围（-30到60度）
+        Object tempObj = data.get("temperature");
+        if (!(tempObj instanceof Number)) {
+            return false;
+        }
+        double temp = ((Number) tempObj).doubleValue();
+        if (temp < -30 || temp > 60) {
+            Bukkit.getLogger().warning("[环境数据] 温度值异常: " + temp + "°C");
+            return false;
+        }
+
+        // 检查湿度值是否在合理范围（0-100%）
+        Object humidityObj = data.get("humidity");
+        if (!(humidityObj instanceof Number)) {
+            return false;
+        }
+        double humidity = ((Number) humidityObj).doubleValue();
+        if (humidity < 0 || humidity > 100) {
+            Bukkit.getLogger().warning("[环境数据] 湿度值异常: " + humidity + "%");
+            return false;
+        }
+
+        // 检查光照等级是否合理（0-15）
+        Object lightObj = data.get("light");
+        if (!(lightObj instanceof Integer)) {
+            return false;
+        }
+        int light = (Integer) lightObj;
+        if (light < 0 || light > 15) {
+            Bukkit.getLogger().warning("[环境数据] 光照等级异常: " + light);
+            return false;
+        }
+
+        return true;
     }
 
     private String generateRequestId(Player player) {
@@ -324,7 +401,7 @@ public class EnvironmentDataScheduler {
         Bukkit.getLogger().info("[环境数据] 总计算次数: " + totalCalculations);
         Bukkit.getLogger().info("[环境数据] 成功发送: " + successfulSends);
         Bukkit.getLogger().info("[环境数据] 失败发送: " + failedSends);
-        Bukkit.getLogger().info("[环境数据] 成功率: " + 
+        Bukkit.getLogger().info("[环境数据] 成功率: " +
                 (totalCalculations > 0 ? (successfulSends * 100.0 / totalCalculations) : 0) + "%");
         Bukkit.getLogger().info("[环境数据] 当前间隔: " + currentInterval + " ticks");
         Bukkit.getLogger().info("[环境数据] 待响应请求: " + pendingRequests.size());
@@ -349,7 +426,7 @@ public class EnvironmentDataScheduler {
         sb.append("§e最后计算: §f").append(formatTimestamp(lastCalculationTime.get())).append("\n");
         sb.append("§e最后响应: §f").append(formatTimestamp(lastResponseTime.get())).append("\n");
         sb.append("§7─────────────────────────────§r");
-        
+
         return sb.toString();
     }
 

@@ -61,44 +61,44 @@ public class EnvironmentDataCalculator {
         Block block = loc.getBlock();
         Biome biome = block.getBiome();
         double baseTemp = getBiomeTemperature(biome);
-        
+
         double temperature = baseTemp;
-        
+
         // 1. 日照强度调整（基于太阳高度角）
         temperature += calculateSunlightEffect(world);
-        
+
         // 2. 天气调整
         temperature += calculateWeatherEffect(world);
-        
+
         // 3. 高度调整（更符合物理规律）
         temperature += calculateAltitudeEffect(loc.getBlockY());
-        
+
         // 4. 地下深度调整（地下温度更稳定）
         temperature += calculateUndergroundEffect(loc);
-        
+
         // 5. 周围热源/冷源影响
         temperature += calculateThermalSourcesEffect(loc, world);
-        
+
         // 6. 水体影响（水的比热容大，调节温度）
         temperature += calculateWaterProximityEffect(loc, world);
-        
+
         // 7. 风寒效应（风速影响体感温度）
         double windSpeed = calculateWindSpeed(loc, world);
         temperature += calculateWindChillEffect(temperature, windSpeed);
-        
+
         // 8. 湿度影响（高湿度影响体感温度）
         double humidity = calculateHumidity(loc, world);
         temperature += calculateHumidityEffect(temperature, humidity);
-        
+
         // 9. 世界环境调整
         temperature += calculateWorldEnvironmentEffect(world);
-        
+
         // 确保温度在合理范围内
         temperature = Math.max(-30, Math.min(60, temperature));
-        
+
         return Math.round(temperature * 10.0) / 10.0;
     }
-    
+
     /**
      * 计算日照强度对温度的影响
      * 基于太阳高度角计算，正午时分影响最大
@@ -106,7 +106,7 @@ public class EnvironmentDataCalculator {
     private double calculateSunlightEffect(World world) {
         long time = world.getTime();
         double sunAngle;
-        
+
         // 计算太阳高度角（0-180度，90度为正午）
         if (time >= 0 && time < 6000) {
             // 日出到正午 (0-90度)
@@ -118,36 +118,36 @@ public class EnvironmentDataCalculator {
             // 夜晚（无日照）
             return -5.0;
         }
-        
+
         // 日照强度与太阳高度角的正弦值成正比
         double intensity = Math.sin(Math.toRadians(sunAngle));
-        
+
         // 正午最大升温8度，早晚升温较少
         return intensity * 8.0;
     }
-    
+
     /**
      * 计算天气对温度的影响
      */
     private double calculateWeatherEffect(World world) {
         double effect = 0.0;
-        
+
         if (world.isThundering()) {
             effect -= 4.0;
         } else if (world.hasStorm()) {
             effect -= 2.5;
         }
-        
+
         return effect;
     }
-    
+
     /**
      * 计算高度对温度的影响
      * 海拔每升高100米，温度下降约0.6度（符合真实物理规律）
      */
     private double calculateAltitudeEffect(int y) {
         double effect = 0.0;
-        
+
         if (y > 64) {
             // 海平面以上，每升高100格降温0.6度
             effect -= (y - 64) * 0.006;
@@ -155,17 +155,17 @@ public class EnvironmentDataCalculator {
             // 地下深处，温度略微升高（地热效应）
             effect += (40 - y) * 0.02;
         }
-        
+
         return effect;
     }
-    
+
     /**
      * 计算地下深度对温度的影响
      * 地下温度更稳定，受地表温度影响较小
      */
     private double calculateUndergroundEffect(Location loc) {
         int y = loc.getBlockY();
-        
+
         // 检测是否在地下（头顶有方块遮挡）
         boolean isUnderground = false;
         World world = loc.getWorld();
@@ -178,80 +178,124 @@ public class EnvironmentDataCalculator {
                 }
             }
         }
-        
+
         if (isUnderground) {
             // 地下温度更稳定，减少极端温度
             return 2.0;
         }
-        
+
         return 0.0;
     }
-    
+
     /**
      * 计算周围热源和冷源对温度的影响
+     * 优先检测玩家直接接触的热源/冷源
      */
     private double calculateThermalSourcesEffect(Location loc, World world) {
         double effect = 0.0;
         int checkRadius = 5;
-        
+
         int cx = loc.getBlockX();
         int cy = loc.getBlockY();
         int cz = loc.getBlockZ();
-        
+
+        // ★ 关键修复：首先检测玩家是否直接接触极端热源/冷源
+        Block playerBlock = world.getBlockAt(cx, cy, cz);
+        Block feetBlock = world.getBlockAt(cx, cy - 1, cz);
+        Block headBlock = world.getBlockAt(cx, cy + 1, cz);
+
+        // 玩家身体位置检测（最高优先级）
+        Material playerMaterial = playerBlock.getType();
+        Material feetMaterial = feetBlock.getType();
+        Material headMaterial = headBlock.getType();
+
+        // 如果玩家站在或处于岩浆中 → 极高温度
+        if (playerMaterial == Material.LAVA || feetMaterial == Material.LAVA) {
+            return 45.0; // 直接接触岩浆：+45度
+        }
+        if (headMaterial == Material.LAVA) {
+            return 35.0; // 头部在岩浆中：+35度
+        }
+
+        // 如果玩家站在火焰中 → 高温
+        if (playerMaterial == Material.FIRE || playerMaterial == Material.SOUL_FIRE ||
+            feetMaterial == Material.FIRE || feetMaterial == Material.SOUL_FIRE) {
+            return 30.0; // 直接接触火焰：+30度
+        }
+
+        // 如果玩家站在岩浆块上 → 高温
+        if (feetMaterial == Material.MAGMA_BLOCK) {
+            return 25.0; // 站在岩浆块上：+25度
+        }
+
+        // 如果玩家接触极寒方块 → 极低温度
+        if (playerMaterial == Material.BLUE_ICE || feetMaterial == Material.BLUE_ICE ||
+            headMaterial == Material.BLUE_ICE) {
+            return -30.0; // 接触蓝冰：-30度
+        }
+        if (playerMaterial == Material.PACKED_ICE || feetMaterial == Material.PACKED_ICE) {
+            return -20.0; // 接触浮冰：-20度
+        }
+        if (playerMaterial == Material.ICE || feetMaterial == Material.ICE) {
+            return -12.0; // 接触普通冰：-12度
+        }
+
+        // 周围环境热源/冷源影响（距离衰减）
         for (int x = cx - checkRadius; x <= cx + checkRadius; x++) {
             for (int y = cy - checkRadius; y <= cy + checkRadius; y++) {
                 for (int z = cz - checkRadius; z <= cz + checkRadius; z++) {
                     Block nearbyBlock = world.getBlockAt(x, y, z);
                     Material type = nearbyBlock.getType();
-                    
+
                     // 计算距离衰减
                     double distance = Math.sqrt(Math.pow(x - cx, 2) + Math.pow(y - cy, 2) + Math.pow(z - cz, 2));
-                    if (distance == 0) distance = 1;
+                    if (distance == 0) continue; // 跳过玩家所在位置（已处理）
                     double distanceFactor = 1.0 / distance;
-                    
-                    // 热源
+
+                    // 热源（提高权重）
                     if (type == Material.LAVA) {
-                        effect += 8.0 * distanceFactor;
+                        effect += 15.0 * distanceFactor; // 提高：8→15
                     } else if (type == Material.FIRE || type == Material.SOUL_FIRE) {
-                        effect += 5.0 * distanceFactor;
+                        effect += 8.0 * distanceFactor; // 提高：5→8
                     } else if (type.name().contains("CAMPFIRE") || type.name().contains("SOUL_CAMPFIRE")) {
-                        effect += 6.0 * distanceFactor;
+                        effect += 7.0 * distanceFactor; // 提高：6→7
                     } else if (type == Material.MAGMA_BLOCK) {
-                        effect += 3.0 * distanceFactor;
+                        effect += 5.0 * distanceFactor; // 提高：3→5
                     } else if (type.name().contains("TORCH") || type.name().contains("LANTERN")) {
-                        effect += 1.0 * distanceFactor;
+                        effect += 1.5 * distanceFactor; // 提高：1→1.5
                     } else if (type.name().contains("FURNACE") || type.name().contains("BLAST_FURNACE") || type.name().contains("SMOKER")) {
-                        effect += 2.0 * distanceFactor;
+                        effect += 3.0 * distanceFactor; // 提高：2→3
                     }
-                    
-                    // 冷源
+
+                    // 冷源（提高权重）
                     else if (type == Material.BLUE_ICE) {
-                        effect -= 4.0 * distanceFactor;
+                        effect -= 6.0 * distanceFactor; // 提高：4→6
                     } else if (type == Material.PACKED_ICE) {
-                        effect -= 3.0 * distanceFactor;
+                        effect -= 4.0 * distanceFactor; // 提高：3→4
                     } else if (type == Material.ICE || type.name().contains("FROSTED_ICE")) {
-                        effect -= 2.0 * distanceFactor;
+                        effect -= 3.0 * distanceFactor; // 提高：2→3
                     } else if (type.name().contains("SNOW")) {
-                        effect -= 1.5 * distanceFactor;
+                        effect -= 2.0 * distanceFactor; // 提高：1.5→2
                     }
                 }
             }
         }
-        
-        return Math.max(-10, Math.min(15, effect));
+
+        // 扩大允许的范围（原：-10到15，新：-20到30）
+        return Math.max(-20, Math.min(30, effect));
     }
-    
+
     /**
      * 计算水体对温度的调节作用
      * 水的比热容大，能稳定周围温度
      */
     private double calculateWaterProximityEffect(Location loc, World world) {
         int waterCount = countNearbyBlocks(loc, Material.WATER, 7);
-        
+
         if (waterCount > 0) {
             // 水体调节温度，使极端温度趋向温和
             double currentTemp = getBiomeTemperature(loc.getBlock().getBiome());
-            
+
             if (currentTemp > 25) {
                 // 炎热环境，水降温
                 return -Math.min(waterCount * 0.3, 5.0);
@@ -260,10 +304,10 @@ public class EnvironmentDataCalculator {
                 return Math.min(waterCount * 0.1, 2.0);
             }
         }
-        
+
         return 0.0;
     }
-    
+
     /**
      * 计算风寒效应对体感温度的影响
      * 风速越大，体感温度越低
@@ -277,14 +321,14 @@ public class EnvironmentDataCalculator {
         }
         return 0.0;
     }
-    
+
     /**
      * 计算湿度对体感温度的影响
      * 高湿度在高温时让人感觉更热，低温时感觉更冷
      */
     private double calculateHumidityEffect(double currentTemp, double humidity) {
         double effect = 0.0;
-        
+
         if (currentTemp > 25 && humidity > 60) {
             // 高温高湿：体感温度升高
             effect = (humidity - 60) * 0.05;
@@ -292,10 +336,10 @@ public class EnvironmentDataCalculator {
             // 低温高湿：体感温度降低（湿冷）
             effect = -(humidity - 70) * 0.03;
         }
-        
+
         return effect;
     }
-    
+
     /**
      * 计算世界环境对温度的影响
      */
@@ -318,16 +362,16 @@ public class EnvironmentDataCalculator {
         Block block = loc.getBlock();
         Biome biome = block.getBiome();
         double baseHumidity = getBiomeHumidity(biome);
-        
+
         double humidity = baseHumidity;
-        
+
         if (world.hasStorm()) {
             humidity += 20;
         }
         if (world.isThundering()) {
             humidity += 10;
         }
-        
+
         String biomeName = biome.name().toUpperCase();
         if (biomeName.contains("OCEAN") || biomeName.contains("RIVER") || biomeName.contains("SWAMP")) {
             humidity += 15;
@@ -336,12 +380,12 @@ public class EnvironmentDataCalculator {
         } else if (biomeName.contains("JUNGLE")) {
             humidity += 10;
         }
-        
+
         int nearbyWater = countNearbyBlocks(loc, Material.WATER, 5);
         humidity += nearbyWater * 2;
-        
+
         humidity = Math.max(0, Math.min(100, humidity));
-        
+
         return Math.round(humidity * 10.0) / 10.0;
     }
 
@@ -354,13 +398,13 @@ public class EnvironmentDataCalculator {
     public int calculateLightLevel(Location loc, World world) {
         Block block = loc.getBlock();
         int lightLevel = block.getLightLevel();
-        
+
         if (world.getEnvironment() == World.Environment.NETHER) {
             return 10;
         } else if (world.getEnvironment() == World.Environment.THE_END) {
             return 8;
         }
-        
+
         return lightLevel;
     }
 
@@ -372,26 +416,26 @@ public class EnvironmentDataCalculator {
      */
     public double calculateWindSpeed(Location loc, World world) {
         double windSpeed = 2.0;
-        
+
         if (world.isThundering()) {
             windSpeed = 15.0 + Math.random() * 10;
         } else if (world.hasStorm()) {
             windSpeed = 8.0 + Math.random() * 5;
         }
-        
+
         int y = loc.getBlockY();
         if (y > 64) {
             windSpeed += (y - 64) * 0.1;
         }
-        
+
         if (world.getEnvironment() == World.Environment.THE_END) {
             windSpeed *= 0.5;
         } else if (world.getEnvironment() == World.Environment.NETHER) {
             windSpeed *= 0.3;
         }
-        
+
         windSpeed = Math.max(0, Math.min(30, windSpeed));
-        
+
         return Math.round(windSpeed * 10.0) / 10.0;
     }
 
@@ -404,18 +448,18 @@ public class EnvironmentDataCalculator {
     public Map<String, Double> calculateResourceRatio(Location loc, World world) {
         Map<String, Integer> resourceCounts = new HashMap<>();
         int totalBlocks = 0;
-        
+
         int startX = loc.getBlockX() - scanRadius;
         int startY = Math.max(0, loc.getBlockY() - heightRange);
         int endY = Math.min(world.getMaxHeight() - 1, loc.getBlockY() + heightRange);
         int startZ = loc.getBlockZ() - scanRadius;
-        
+
         for (int x = startX; x <= startX + scanRadius * 2; x += 2) {
             for (int y = startY; y <= endY; y += 2) {
                 for (int z = startZ; z <= startZ + scanRadius * 2; z += 2) {
                     Block block = world.getBlockAt(x, y, z);
                     Material type = block.getType();
-                    
+
                     if (type != Material.AIR && type != Material.CAVE_AIR && type != Material.VOID_AIR) {
                         totalBlocks++;
                         String category = categorizeMaterial(type);
@@ -424,7 +468,7 @@ public class EnvironmentDataCalculator {
                 }
             }
         }
-        
+
         Map<String, Double> ratios = new HashMap<>();
         if (totalBlocks > 0) {
             for (Map.Entry<String, Integer> entry : resourceCounts.entrySet()) {
@@ -432,7 +476,7 @@ public class EnvironmentDataCalculator {
                 ratios.put(entry.getKey(), Math.round(ratio * 10.0) / 10.0);
             }
         }
-        
+
         return ratios;
     }
 
@@ -443,8 +487,8 @@ public class EnvironmentDataCalculator {
      */
     private String categorizeMaterial(Material material) {
         String name = material.name();
-        
-        if (name.contains("ORE") || name.contains("DIAMOND") || name.contains("EMERALD") || 
+
+        if (name.contains("ORE") || name.contains("DIAMOND") || name.contains("EMERALD") ||
             name.contains("GOLD") || name.contains("IRON") || name.contains("COAL") ||
             name.contains("REDSTONE") || name.contains("LAPIS") || name.contains("COPPER") ||
             name.contains("QUARTZ") || name.contains("ANCIENT_DEBRIS")) {
@@ -473,7 +517,7 @@ public class EnvironmentDataCalculator {
             name.contains("BREWING_STAND") || name.contains("ANVIL") || name.contains("CRAFTING")) {
             return "utility";
         }
-        
+
         return "other";
     }
 
@@ -490,7 +534,7 @@ public class EnvironmentDataCalculator {
         int cx = loc.getBlockX();
         int cy = loc.getBlockY();
         int cz = loc.getBlockZ();
-        
+
         for (int x = cx - radius; x <= cx + radius; x++) {
             for (int y = cy - radius; y <= cy + radius; y++) {
                 for (int z = cz - radius; z <= cz + radius; z++) {
@@ -500,7 +544,7 @@ public class EnvironmentDataCalculator {
                 }
             }
         }
-        
+
         return count;
     }
 
@@ -527,7 +571,7 @@ public class EnvironmentDataCalculator {
      */
     private double getBiomeTemperature(Biome biome) {
         String biomeName = biome.name().toUpperCase();
-        
+
         if (biomeName.contains("DESERT") || biomeName.contains("BADLANDS") || biomeName.contains("SAVANNA")) {
             return 35.0;
         } else if (biomeName.contains("JUNGLE")) {
@@ -572,7 +616,7 @@ public class EnvironmentDataCalculator {
      */
     private double getBiomeHumidity(Biome biome) {
         String biomeName = biome.name().toUpperCase();
-        
+
         if (biomeName.contains("DESERT") || biomeName.contains("BADLANDS") || biomeName.contains("SAVANNA")) {
             return 10.0;
         } else if (biomeName.contains("JUNGLE")) {

@@ -26,18 +26,18 @@ environment:
   scan-radius: 10
   # 高度范围（格）
   height-range: 5
-  # 基础计算间隔（ticks，1秒=20ticks）
-  base-interval: 100
-  # 最小计算间隔（ticks）
-  min-interval: 50
-  # 最大计算间隔（ticks）
-  max-interval: 500
+  # ★ 调整：基础计算间隔（ticks，1秒=20ticks）原100→200（10秒）
+  base-interval: 200
+  # ★ 调整：最小计算间隔（ticks）原50→100（5秒），确保有足够计算时间
+  min-interval: 100
+  # ★ 调整：最大计算间隔（ticks）原500→600（30秒），极端情况兜底
+  max-interval: 600
   # 响应超时时间（毫秒）
   response-timeout: 5000
   # 最大重试次数
   max-retries: 3
-  # 是否启用调试模式
-  debug-mode: false
+  # ★ 新增：是否启用调试模式（建议开启以便监控数据质量）
+  debug-mode: true
 
 # 经济系统设置
 economy:
@@ -105,7 +105,7 @@ chat:
   # 聊天格式模板（支持丰富的占位符）
   # 可用占位符：%prefix%, %player%, %displayname%, %message%, %time%, %world%, %level%, %level_color%, %player_prefix%, %player_suffix%, %online%, %max_players%, %ping%, %gamemode%
   format: "&8[&e%time%&8] %player_prefix%%level_color%[Lv.%level%]&r %player%%player_suffix%&7: &r%message%"
-  
+
   # 高级聊天格式选项
   advanced-formats:
     # 管理员聊天格式
@@ -116,7 +116,7 @@ chat:
     default: "&8[&a玩家&8] &7%player% &7: &f%message%"
     # 新玩家聊天格式（等级低于10）
     newbie: "&8[&b新手&8] &b%player% &7: &f%message%"
-  
+
   # 聊天提示功能设置
   hints:
     # 是否启用聊天提示功能
@@ -129,7 +129,7 @@ chat:
     reply-suggestions: true
     # 是否启用聊天统计功能
     stats-enabled: true
-    
+
     # 表情符号映射表（可以自定义添加）
     custom-emojis:
       ":smile:": "😊"
@@ -148,10 +148,10 @@ join-message:
   server-name: "geek服务器"
   # 是否启用登录消息系统
   enabled: true
-  
+
   # 是否在玩家加入时自动发送功能使用指南
   send-help-guide-on-join: true
-  
+
   # 大屏幕标题设置
   title:
     # 是否启用标题显示
@@ -166,7 +166,7 @@ join-message:
     stay: 40
     # 淡出时间（tick）
     fade-out: 10
-  
+
   # 动作栏设置
   action-bar:
     # 是否启用动作栏
@@ -175,7 +175,7 @@ join-message:
     text: "&a欢迎 &e%player% &a加入! &7在线玩家: &6%online% &7/ &6%max_players%"
     # 显示时长（秒）
     duration: 5
-  
+
   # 聊天框消息设置
   chat-message:
     # 是否启用聊天框欢迎消息
@@ -192,7 +192,7 @@ join-message:
       - "&a✨ 热烈欢迎 &e%player% &a! &7您的UUID: &6%uuid_short%"
       - "&a🎊 &e%player% &a加入了服务器! &7游戏模式: &6%gamemode%"
       - "&a🎪 欢迎 &e%player% &a! &7您的Ping: &6%ping%ms"
-  
+
   # 退出消息设置
   quit-message:
     # 是否启用退出消息
@@ -208,7 +208,7 @@ join-message:
       - "&c⏰ &e%player% &c已退出，服务器已运行: &6%uptime% &c小时"
       - "&c🎭 &e%player% &c离开了服务器，游戏模式: &6%gamemode%"
       - "&c📱 &e%player% &c下线了，Ping: &6%ping%ms"
-  
+
   # 烟花特效设置
   fireworks:
     # 是否启用烟花特效（仅对新玩家）
@@ -279,17 +279,17 @@ announcements:
     - "&a服务器状态良好，尽情享受游戏！"
     - "&b记得访问我们的网站：&nhttps://zmx.ljcode.cn"
     - "&d每周活动正在进行中，进入网站zmx.ljcode.cn参与赢取奖励！"
-  
+
   # 动作栏公告消息列表
   actionbar-messages:
     - "&6当前在线玩家: &e%server_online% &6/&e %server_max_players%"
     - "&a服务器运行稳定！"
-  
+
   # 标题公告消息列表
   title-messages:
     - ["&6&l每日提示", "&e记得备份你的建筑哦！"]
     - ["&d&l服务器活动", "&zmx.ljcode.cn参与活动！"]
-  
+
   # BossBar公告消息列表
   bossbar:
     # 是否启用BossBar功能
@@ -298,7 +298,7 @@ announcements:
       - "&6&l服务器公告 - 欢迎所有玩家！"
       - "&c&l重要通知：请遵守服务器规则"
       - "&a&l每日签到可获得丰厚奖励！"
-  
+
   # 消息轮播设置
   random-order: true
   # 消息轮播间隔（秒）
@@ -327,7 +327,7 @@ chat-format:
     blue-threshold: 40    # 蓝色等级阈值
     green-threshold: 20   # 绿色等级阈值
     default-color: "&7"   # 默认颜色
-  
+
   # 玩家前缀设置
   prefixes:
     admin: "&4[管理员]&r "
@@ -336,21 +336,21 @@ chat-format:
     veteran: "&6[资深]&r "
     active: "&e[活跃]&r "
     default: "&7[玩家]&r "
-    
+
     # 前缀等级阈值
     veteran-level: 50
     active-level: 20
-  
+
   # 玩家后缀设置（基于延迟）
   suffixes:
     low-ping: " &a⚡"
     medium-ping: " &e📶"
     high-ping: " &c📡"
-    
+
     # 延迟阈值（毫秒）
     low-ping-threshold: 50
     medium-ping-threshold: 150
-  
+
   # 动作栏通知设置
   actionbar-notification:
     # 消息截断长度
@@ -370,26 +370,18 @@ chat-hints:
     recent-messages-display: 5
     # 统计显示间隔（每多少条消息显示一次统计）
     stats-interval: 10
-  
+
   # 活跃度等级设置
   activity-levels:
     very-active: 100
     active: 50
     normal: 20
-    
+
     # 活跃度标签
     very-active-label: "🔥 非常活跃"
     active-label: "🌟 活跃"
     normal-label: "💫 一般"
     default-label: "🌱 新手"
-
-# 玩家加入消息设置
-join-message:
-  title:
-    # 标题显示时间（tick）
-    fade-in: 10
-    stay: 40
-    fade-out: 0
 
 # Web服务器设置
 web-server:
@@ -408,7 +400,7 @@ debug-info:
     afternoon: [12000, 18000]
     night: [18000, 23000]
     late-night: [23000, 24000]
-    
+
     # 时间标签
     dawn-label: "黎明"
     morning-label: "上午"

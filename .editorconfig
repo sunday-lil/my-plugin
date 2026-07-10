@@ -1,0 +1,47 @@
+# EditorConfig - 帮助开发者在不同编辑器/IDE 中保持一致的编码风格
+# https://editorconfig.org
+
+root = true
+
+# 所有文件的默认设置
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Java 文件
+[*.{java}]
+indent_size = 4
+continuation_indent_size = 8
+
+# XML/YAML 配置文件
+[*.{xml,yml,yaml,json}]
+indent_size = 2
+
+# Markdown 文件
+[*.md]
+trim_trailing_whitespace = false  # Markdown 中行尾空格有时是有意义的
+
+# Shell 脚本
+[*.{sh,bash}]
+end_of_line = lf
+indent_size = 4
+
+# Batch 文件
+[*.bat]
+end_of_line = crlf
+
+# Makefile
+[Makefile]
+indent_style = tab
+
+# HTML/CSS/JavaScript
+[*.{html,css,js}]
+indent_size = 2
+
+# Properties 文件
+[*.properties]
+charset = latin1  # Java properties 文件通常使用 ISO-8859-1 编码

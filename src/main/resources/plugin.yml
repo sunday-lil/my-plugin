@@ -3,8 +3,8 @@ version: '1.0.0'
 main: org.ljcode.myPlugin.MyPlugin
 api-version: '1.21'
 description: 一个功能丰富的EssentialsX克隆插件，包含基本的服务器命令
-website: https://github.com/your-repo/essentialsx-clone
-author: YourName
+website: https://github.com/sunday-lil/my-plugin
+author: sunday-lil
 softdepend: [PlaceholderAPI]
 
 commands:
@@ -141,14 +141,14 @@ permissions:
       essentialsx.gm: true
       essentialsx.money: true
       essentialsx.admin: true
-  
+
   essentialsx.tp:
     description: Teleport permissions
     default: true
     children:
       essentialsx.tp.self: true
       essentialsx.tp.others: false
-  
+
   essentialsx.home:
     description: Home permissions
     default: true
@@ -159,64 +159,64 @@ permissions:
   chatannouncements.reload:
     description: Permission to reload plugin configuration
     default: op
-  
+
   chatannouncements.send.chat:
     description: Permission to send chat announcements
     default: op
-    
+
   chatannouncements.send.actionbar:
     description: Permission to send action bar announcements
     default: op
-    
+
   chatannouncements.send.title:
     description: Permission to send title announcements
     default: op
-    
+
   chatannouncements.send.bossbar:
     description: Permission to send boss bar announcements
     default: op
-    
+
   chatannouncements.update.notify:
     description: Receive join notifications when new plugin version is available
     default: op
-  
+
   essentialsx.home:
     description: Home permissions
     default: true
     children:
       essentialsx.home.set: true
       essentialsx.home.teleport: true
-  
+
   essentialsx.warp:
     description: Warp permissions
     default: true
     children:
       essentialsx.warp.set: false
       essentialsx.warp.teleport: true
-  
+
   essentialsx.fly:
     description: Fly permissions
     default: op
-  
+
   essentialsx.god:
     description: God mode permissions
     default: op
-  
+
   essentialsx.heal:
     description: Heal permissions
     default: op
-  
+
   essentialsx.gm:
     description: Game mode permissions
     default: op
-  
+
   essentialsx.money:
     description: Economy permissions
     default: true
     children:
       essentialsx.money.see: true
       essentialsx.money.pay: true
-  
+
   essentialsx.admin:
     description: Admin permissions
     default: op

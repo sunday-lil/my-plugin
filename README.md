@@ -5,6 +5,29 @@
   <em>基于 Spigot API 1.21 | Java 21 | 模块化架构设计</em>
 </p>
 
+<p align="center">
+  <a href="https://github.com/sunday-lil/my-plugin/releases/latest"><img src="https://img.shields.io/github/v/release/sunday-lil/my-plugin?color=blue&label=最新版本" alt="Latest Release"></a>
+  <a href="https://github.com/sunday-lil/my-plugin/blob/main/LICENSE"><img src="https://img.shields.io/github/license/sunday-lil/my-plugin?color=green" alt="License"></a>
+  <a href="https://github.com/sunday-lil/my-plugin/issues"><img src="https://img.shields.io/github/issues/sunday-lil/my-plugin?color=orange" alt="Issues"></a>
+  <a href="https://github.com/sunday-lil/my-plugin/pulls"><img src="https://img.shields.io/github/issues-pr/sunday-lil/my-plugin?color=purple" alt="Pull Requests"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Java-21-orange" alt="Java Version">
+  <img src="https://img.shields.io/badge/Minecraft-1.21+-green" alt="Minecraft Version">
+  <img src="https://img.shields.io/badge/Spigot-API-1.21-blue" alt="Spigot API">
+  <img src="https://img.shields.io/badge/Build-Maven%203.6+-red" alt="Build Tool">
+</p>
+
+<p align="center">
+  <a href="#项目简介">📖 简介</a> •
+  <a href="#安装指南">📦 安装</a> •
+  <a href="#功能模块详解">✨ 功能</a> •
+  <a href="#项目架构与技术细节">🏗️ 架构</a> •
+  <a href="#开发指南">🛠️ 开发</a> •
+  <a href="#文档导航">📚 文档</a> •
+  <a href="#贡献指南">🤝 贡献</a> •
+  <a href="#许可证">📄 许可证</a>
+</p>
+
 ---
 
 ## ✨ 项目简介
@@ -895,24 +918,110 @@ custom-emojis:
 
 ---
 
-## 📞 联系方式
+## 📚 文档导航
 
-- **问题反馈**: [GitHub Issues](https://github.com/your-repo/essentialsx-clone/issues)
-- **功能建议**: [GitHub Discussions](https://github.com/your-repo/essentialsx-clone/discussions)
-- **官方网站**: https://zmx.ljcode.cn
+| 文档 | 说明 | 链接 |
+|------|------|------|
+| 📋 **变更日志** | 版本更新历史和功能变更记录 | [CHANGELOG.md](./CHANGELOG.md) |
+| 🤝 **贡献指南** | 如何参与项目开发和提交代码 | [CONTRIBUTING.md](./CONTRIBUTING.md) |
+| 📜 **行为准则** | 社区行为规范和期望 | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) |
+| 🔒 **安全政策** | 安全漏洞报告流程和最佳实践 | [SECURITY.md](./SECURITY.md) |
+| 📄 **开源许可** | MIT 许可证全文 | [LICENSE](./LICENSE) |
+
+### 快速链接
+
+- 🔗 **GitHub 仓库**: https://github.com/sunday-lil/my-plugin
+- 🐛 **问题反馈**: [Issues](https://github.com/sunday-lil/my-plugin/issues)
+- 💬 **功能讨论**: [Discussions](https://github.com/sunday-lil/my-plugin/discussions)
+- 📦 **版本发布**: [Releases](https://github.com/sunday-lil/my-plugin/releases)
+- 🔍 **安全公告**: [Security Advisories](https://github.com/sunday-lil/my-plugin/security/advisories)
+
+---
+
+## 🤝 贡献指南
+
+我们欢迎所有形式的贡献！无论是 Bug 修复、新功能、文档改进还是测试用例。
+
+查看完整的贡献指南：[📖 CONTRIBUTING.md](./CONTRIBUTING.md)
+
+### 快速开始
+
+```bash
+# 1. Fork 并克隆仓库
+git clone https://github.com/你的用户名/my-plugin.git
+
+# 2. 创建功能分支
+git checkout -b feature/你的新功能
+
+# 3. 开发并测试
+mvn clean package && mvn test
+
+# 4. 提交并推送
+git add . && git commit -m "feat: 添加新功能" && git push origin feature/你的新功能
+
+# 5. 创建 Pull Request
+```
+
+### 代码规范
+
+- ✅ 使用 4 空格缩进
+- ✅ 遵循 Google Java Style Guide
+- ✅ 所有 public 方法添加 Javadoc 注释
+- ✅ 新功能必须编写单元测试
+- ✅ Commit Message 遵循 Conventional Commits 规范
+
+---
+
+## 📄 许可证
+
+本项目基于 **MIT License** 开源协议发布。
+
+查看完整许可证文本：[📜 LICENSE](./LICENSE)
+
+### 核心条款
+
+✅ **允许事项：**
+- 商业使用
+- 修改和分发
+- 私人使用
+- 再授权（需包含版权声明）
+
+❌ **免责声明：**
+- 本软件按"原样"提供，不提供任何形式的明示或暗示的保证
+- 作者不对任何索赔或损害负责
+
+---
+
+## 📞 联系方式与支持
+
+- **问题反馈**: [GitHub Issues](https://github.com/sunday-lil/my-plugin/issues)
+- **功能建议**: [GitHub Discussions](https://github.com/sunday-lil/my-plugin/discussions)
+- **安全漏洞**: [SECURITY.md](./SECURITY.md)
+- **官方邮箱**: sunday-lil@users.noreply.github.com
 
 ---
 
 ## 🙏 致谢
 
+感谢以下开源项目和社区的支持：
+
 - **SpigotMC** - 提供优秀的 Minecraft 服务端 API
 - **PlaceholderAPI** - 强大的占位符解决方案
 - **NanoHTTPD** - 轻量级嵌入式 HTTP 服务器
+- **Gson** (Google) - 高性能 JSON 处理库
+- **Maven Apache** - 项目构建与依赖管理工具
+- **IntelliJ IDEA** - 强大的 Java IDE
 - **所有贡献者** - 让这个项目变得更好
 
 ---
 
 <p align="center">
-  <strong>Made with ❤️ by ljcode | Powered by Java & Spigot API</strong><br>
+  <strong>Made with ❤️ by sunday-lil | Powered by Java 21 & Spigot API 1.21</strong><br>
   <em>如果这个项目对你有帮助，请给一个 ⭐ Star 支持一下！</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/sunday-lil/my-plugin"><img src="https://img.shields.io/github/stars/sunday-lil/my-plugin?style=social" alt="GitHub Stars"></a>
+  <a href="https://github.com/sunday-lil/my-plugin/fork"><img src="https://img.shields.io/github/forks/sunday-lil/my-plugin?style=social" alt="GitHub Forks"></a>
+  <a href="https://github.com/sunday-lil/my-plugin/watchers"><img src="https://img.shields.io/github/watchers/sunday-lil/my-plugin?style=social" alt="GitHub Watchers"></a>
 </p>

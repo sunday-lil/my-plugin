@@ -1,23 +1,49 @@
-# User-specific stuff
-.idea/
+# ============================================================
+# EssentialsX-Clone - Git 忽略配置文件
+# 基于 GitHub Java .gitignore 模板
+# 最后更新: 2026-07-10
+# ============================================================
 
+# ---------- IDE / 编辑器 ----------
+.idea/
 *.iml
 *.ipr
 *.iws
-
-# IntelliJ
 out/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.vscode/
+*.sublime-workspace
+*.sublime-project
 
-# Compiled class file - 已移除限制，需要上传 class 文件
-# *.class
+# ---------- 编译输出 (保留用于发布) ----------
+# 注意: target/ 目录需要上传以包含编译产物
+# 如果不需要上传编译产物，请取消下面的注释:
+# target/
 
-# Log file
+# ---------- Maven ----------
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+pom.xml.backup
+pom.xml.~*
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+.flattened-pom.xml
+
+# ---------- 日志文件 ----------
 *.log
 
-# BlueJ files
-*.ctxt
-
-# Package Files - 已移除限制，需要上传 jar 包
+# ---------- 包文件 (保留 JAR 用于发布) ----------
+# 注意: *.jar 已注释，允许上传编译后的 JAR 包
 # *.jar
 *.war
 *.nar
@@ -26,35 +52,16 @@ out/
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# ---------- JVM 崩溃日志 ----------
 hs_err_pid*
 
-*~
+# ---------- 操作系统文件 ----------
 
-# temporary files which can be created if a process still has a handle open of a deleted file
-.fuse_hidden*
-
-# KDE directory preferences
-.directory
-
-# Linux trash folder which might appear on any partition or disk
-.Trash-*
-
-# .nfs files are created when an open file is removed but is still being accessed
-.nfs*
-
-# General
+### macOS
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Icon must end with two \r
-Icon
-
-# Thumbnails
 ._*
-
-# Files that might appear in the root of a volume
 .DocumentRevisions-V100
 .fseventsd
 .Spotlight-V100
@@ -62,52 +69,77 @@ Icon
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
 .AppleDB
 .AppleDesktop
 Network Trash Folder
 Temporary Items
 .apdisk
 
-# Windows thumbnail cache files
+### Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+### Windows
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
 ehthumbs_vista.db
-
-# Dump file
 *.stackdump
-
-# Folder config file
 [Dd]esktop.ini
-
-# Recycle Bin used on file shares
 $RECYCLE.BIN/
-
-# Windows Installer files
 *.cab
 *.msi
 *.msix
 *.msm
 *.msp
-
-# Windows shortcuts
 *.lnk
 
-# target/ - 已移除限制，需要上传编译产物
+# ---------- 临时文件 ----------
+*.tmp
+*.temp
+*.bak
+*.cache
+*.pid
+*.seed
+*.pid.lock
 
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
+# ---------- 测试覆盖率 ----------
+coverage/
+jacoco.exec
+*.exec
 
-release.properties
-dependency-reduced-pom.xml
-buildNumber.properties
-.mvn/timing.properties
-.mvn/wrapper/maven-wrapper.jar
-.flattened-pom.xml
+# ---------- 文档生成 ----------
+docs/_build/
+docs/generated/
 
-# Common working directory
+# ---------- 本地运行/测试数据 ----------
 run/
+logs/
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ---------- 环境变量和敏感信息 ----------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+credentials.xml
+settings-security.xml
+
+# ---------- 备份文件 ----------
+*.orig
+*.backup
+*~
+
+# ---------- 蓝牙文件 (BlueJ) ----------
+*.ctxt
+
+# ---------- 其他 ----------
+.m2/  # Maven 本地仓库缓存（不应提交）
+node_modules/  # Node.js 依赖（如果有的话）

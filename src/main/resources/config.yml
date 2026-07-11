@@ -39,6 +39,25 @@ environment:
   # ★ 新增：是否启用调试模式（建议开启以便监控数据质量）
   debug-mode: true
 
+# 数字城市管理系统设置
+digital-city:
+  # 是否启用数字城市管理系统（需要先启用 k10.enabled）
+  enabled: true
+  # 城市名称
+  city-name: "Minecraft智慧城市"
+  # 城市仪表盘更新间隔（ticks，20ticks=1秒）
+  dashboard-interval: 600  # 30秒
+  # 详细统计收集间隔（ticks）
+  statistics-interval: 6000  # 5分钟
+  # 是否启用调试模式（显示详细日志）
+  debug-mode: true
+  # 是否在玩家加入时发送欢迎消息到K10
+  welcome-message-enabled: true
+  # 是否追踪方块操作（破坏/放置）
+  block-tracking-enabled: true
+  # 是否追踪聊天消息
+  chat-tracking-enabled: true
+
 # 经济系统设置
 economy:
   # 是否启用经济系统

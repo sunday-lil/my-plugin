@@ -124,9 +124,17 @@ public final class MyPlugin extends JavaPlugin {
         if (k10TCPManager != null && getConfig().getBoolean("digital-city.enabled", true)) {
             digitalCityManager = new DigitalCityManager(this);
             digitalCityListener = new DigitalCityListener(this);
-            getLogger().info("🏙️ 数字城市管理系统已启动！");
+
+            // ★ 关键：启动城市管理系统（开始发送数据）
+            digitalCityManager.startCityManagement();
+
+            getLogger().info("🏙️ 数字城市管理系统已初始化");
         } else {
-            getLogger().info("🏙️ 数字城市管理系统已禁用");
+            if (k10TCPManager == null) {
+                getLogger().warning("⚠️ [数字城市] K10管理器未初始化，跳过数字城市系统");
+            } else {
+                getLogger().info("🏙️ 数字城市管理系统已在配置中禁用");
+            }
         }
 
         // 启动Web配置服务器

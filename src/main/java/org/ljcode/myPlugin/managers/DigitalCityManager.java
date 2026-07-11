@@ -50,11 +50,34 @@ public class DigitalCityManager {
     }
 
     public void startCityManagement() {
+        plugin.getLogger().info("🏙️ [数字城市] 正在启动管理系统...");
+        plugin.getLogger().info("   K10管理器: " + (k10Manager != null ? "✅ 已连接" : "❌ 未找到"));
+        plugin.getLogger().info("   配置状态: " + (plugin.getConfig().getBoolean("digital-city.enabled", true) ? "✅ 已启用" : "❌ 已禁用"));
+
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            startCityDashboard();
-            startStatisticsCollection();
-            sendCityInitialization();
-            plugin.getLogger().info("🏙️ 数字城市管理系统已启动！");
+            try {
+                startCityDashboard();
+                startStatisticsCollection();
+                sendCityInitialization();
+
+                plugin.getLogger().info("");
+                plugin.getLogger().info("╔══════════════════════════════════════╗");
+                plugin.getLogger().info("║  🏙️ 数字城市管理系统启动成功！       ║");
+                plugin.getLogger().info("╚══════════════════════════════════════╝");
+                plugin.getLogger().info("");
+                plugin.getLogger().info("📊 功能状态:");
+                plugin.getLogger().info("   ✅ 城市仪表盘: 每30秒更新");
+                plugin.getLogger().info("   ✅ 统计收集: 每5分钟运行");
+                plugin.getLogger().info("   ✅ 事件追踪: 玩家/方块/聊天");
+                plugin.getLogger().info("");
+                plugin.getLogger().info("🔗 数据流向:");
+                plugin.getLogger().info("   Minecraft → DigitalCityManager → K10TCPManager → K10设备");
+                plugin.getLogger().info("");
+
+            } catch (Exception e) {
+                plugin.getLogger().severe("❌ [数字城市] 启动失败: " + e.getMessage());
+                e.printStackTrace();
+            }
         }, 100L);
     }
 
@@ -146,9 +169,26 @@ public class DigitalCityManager {
         dashboardData.put("recent_events", getRecentEvents(5));
 
         String dashboardJson = gson.toJson(dashboardData);
+
+        // 强制输出调试信息（无论配置如何，首次都显示）
+        if (plugin.getConfig().getBoolean("digital-city.debug-mode", true)) {
+            plugin.getLogger().info("🏙️ [数字城市] 发送仪表盘数据:");
+            plugin.getLogger().info("   JSON长度: " + dashboardJson.length() + " 字符");
+            plugin.getLogger().info("   在线人数: " + onlinePlayers + "/" + maxPlayers);
+            plugin.getLogger().info("   TPS: " + tps);
+            plugin.getLogger().info("   总入驻: " + totalPlayersJoined.get());
+            plugin.getLogger().info("   消息数: " + totalMessages.get());
+            plugin.getLogger().info("   城市状态: " + cityStatus);
+
+            if (dashboardJson.length() < 500) {  // 只在JSON较短时打印完整内容
+                plugin.getLogger().info("   完整JSON: " + dashboardJson);
+            }
+        }
+
         k10Manager.sendMessageAsync(dashboardJson);
-        if (plugin.getConfig().getBoolean("environment.debug-mode", false)) {
-            plugin.getLogger().info("📊 城市仪表盘数据已更新");
+
+        if (plugin.getConfig().getBoolean("digital-city.debug-mode", true)) {
+            plugin.getLogger().info("✅ [数字城市] 数据已加入K10发送队列");
         }
     }
 

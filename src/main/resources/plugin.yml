@@ -149,12 +149,6 @@ permissions:
       essentialsx.tp.self: true
       essentialsx.tp.others: false
 
-  essentialsx.home:
-    description: Home permissions
-    default: true
-    children:
-      essentialsx.home.set: true
-
   # ChatAnnouncements permissions
   chatannouncements.reload:
     description: Permission to reload plugin configuration
@@ -216,6 +210,36 @@ permissions:
     children:
       essentialsx.money.see: true
       essentialsx.money.pay: true
+      essentialsx.money.baltop: true
+
+  essentialsx.money.baltop:
+    description: Allows viewing the balance top list
+    default: true
+
+  # 银行系统权限（/bank）
+  bank.use:
+    description: Bank basic permissions
+    default: true
+    children:
+      bank.deposit: true
+      bank.withdraw: true
+      bank.transfer: true
+
+  bank.deposit:
+    description: Allows depositing money into the bank
+    default: true
+
+  bank.withdraw:
+    description: Allows withdrawing money from the bank
+    default: true
+
+  bank.transfer:
+    description: Allows transferring money between bank accounts
+    default: true
+
+  bank.balance.others:
+    description: Allows viewing other players bank balance
+    default: op
 
   essentialsx.admin:
     description: Admin permissions

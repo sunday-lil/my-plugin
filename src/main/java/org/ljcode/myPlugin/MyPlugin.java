@@ -24,6 +24,7 @@ public final class MyPlugin extends JavaPlugin {
 
     // 各种功能管理器实例，负责处理不同类型的业务逻辑
     private EconomyManager economyManager;          // 经济系统管理器
+    private BankManager bankManager;                // 银行系统管理器
     private HomeManager homeManager;                // 家园系统管理器
     private WarpManager warpManager;                // 传送点系统管理器
     private TeleportManager teleportManager;        // 传送系统管理器
@@ -58,6 +59,7 @@ public final class MyPlugin extends JavaPlugin {
 
         // 初始化所有功能管理器，每个管理器负责不同的业务逻辑
         economyManager = new EconomyManager(this);              // 经济系统管理器
+        bankManager = new BankManager(this);                    // 银行系统管理器
         homeManager = new HomeManager(this);                    // 家园系统管理器
         warpManager = new WarpManager(this);                    // 传送点系统管理器
         teleportManager = new TeleportManager(this);            // 传送系统管理器
@@ -124,6 +126,9 @@ public final class MyPlugin extends JavaPlugin {
         if (k10TCPManager != null && getConfig().getBoolean("digital-city.enabled", true)) {
             digitalCityManager = new DigitalCityManager(this);
             digitalCityListener = new DigitalCityListener(this);
+
+            // ★ 关键：注册事件监听器（必须在创建实例之后，统计才能真正采集数据）
+            getServer().getPluginManager().registerEvents(digitalCityListener, this);
 
             // ★ 关键：启动城市管理系统（开始发送数据）
             digitalCityManager.startCityManagement();
@@ -337,11 +342,8 @@ public final class MyPlugin extends JavaPlugin {
             getLogger().info("[K10数字孪生] 事件监听器已注册");
         }
 
-        // 数字城市事件监听器：处理玩家行为统计和城市管理
-        if (digitalCityListener != null && getConfig().getBoolean("digital-city.enabled", true)) {
-            getServer().getPluginManager().registerEvents(digitalCityListener, this);
-            getLogger().info("[数字城市] 事件监听器已注册");
-        }
+        // 注意：数字城市监听器在 onEnable 的数字城市初始化块中注册
+        // （因为 digitalCityListener 实例在 registerListeners() 之后才创建）
     }
 
     /**
@@ -351,6 +353,7 @@ public final class MyPlugin extends JavaPlugin {
      */
     private void loadData() {
         economyManager.loadData();      // 加载经济系统数据（玩家余额等）
+        bankManager.loadData();         // 加载银行账户数据
         homeManager.loadData();         // 加载家园数据（玩家设置的家的位置）
         warpManager.loadData();         // 加载传送点数据（服务器设置的公共传送点）
         teleportManager.loadData();     // 加载传送历史数据（玩家最后位置等）
@@ -364,6 +367,7 @@ public final class MyPlugin extends JavaPlugin {
      */
     private void saveData() {
         economyManager.saveData();      // 保存经济系统数据（玩家余额等）
+        bankManager.saveData();         // 保存银行账户数据
         homeManager.saveData();         // 保存家园数据（玩家设置的家的位置）
         warpManager.saveData();         // 保存传送点数据（服务器设置的公共传送点）
         teleportManager.saveData();     // 保存传送历史数据（玩家最后位置等）
@@ -377,6 +381,10 @@ public final class MyPlugin extends JavaPlugin {
 
     public EconomyManager getEconomyManager() {
         return economyManager;
+    }
+
+    public BankManager getBankManager() {
+        return bankManager;
     }
 
     public AnnouncementManager getAnnouncementManager() {
@@ -409,5 +417,23 @@ public final class MyPlugin extends JavaPlugin {
 
     public K10TCPManager getK10TCPManager() {
         return k10TCPManager;
+    }
+
+    public K10DigitalTwinListener getK10DigitalTwinListener() {
+        return k10DigitalTwinListener;
+    }
+
+    /**
+     * 同步最新配置对象到K10链路各持有者（K10TCPManager / K10DigitalTwinListener）
+     * 在 reloadConfig() 之后调用，确保Web控制台或 /eanreload 修改的K10设置立即生效
+     */
+    public void syncK10Config() {
+        if (k10TCPManager != null) {
+            k10TCPManager.setConfig(getConfig());
+            k10TCPManager.reloadConfig();
+        }
+        if (k10DigitalTwinListener != null) {
+            k10DigitalTwinListener.setConfig(getConfig());
+        }
     }
 }

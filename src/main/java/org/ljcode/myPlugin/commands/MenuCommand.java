@@ -95,8 +95,6 @@ public class MenuCommand implements CommandExecutor {
         inv.setItem(12, createMenuItem(Material.GOLDEN_APPLE, "§a治疗自己", "§7点击恢复生命值", "§8/eheal [玩家]", "§a恢复满血满饥饿"));
         inv.setItem(13, createMenuItem(Material.COOKED_BEEF, "§a填饱肚子", "§7点击恢复饥饿值", "§8/efeed [玩家]", "§a恢复饱食度"));
         inv.setItem(14, createMenuItem(Material.GRASS_BLOCK, "§a更改游戏模式", "§7点击切换游戏模式", "§8/egm <0|1|2|3> [玩家]", "§a0=生存 1=创造 2=冒险 3=旁观"));
-        inv.setItem(15, createMenuItem(Material.POTION, "§a速度提升", "§7点击提升移动速度", "§8/espeed [玩家]", "§a临时加速效果"));
-        inv.setItem(16, createMenuItem(Material.NETHER_STAR, "§a清除药水效果", "§7点击清除所有药水效果", "§8/eclear [玩家]", "§a移除所有状态效果"));
         
         inv.setItem(40, createBackItem());
         inv.setItem(49, createCloseItem());
@@ -112,8 +110,7 @@ public class MenuCommand implements CommandExecutor {
         inv.setItem(11, createMenuItem(Material.GOLD_INGOT, "§6查看余额", "§7点击查看你的余额", "§8/emoney [玩家]", "§a管理员可查看其他玩家"));
         inv.setItem(12, createMenuItem(Material.EMERALD, "§6转账给玩家", "§7点击转账给其他玩家", "§8/epay <玩家> <金额>", "§a支持小数金额"));
         inv.setItem(13, createMenuItem(Material.DIAMOND, "§6余额排行榜", "§7点击查看余额排行榜", "§8/ebalancetop", "§a显示前10名"));
-        inv.setItem(14, createMenuItem(Material.CHEST, "§6银行存取款", "§7点击打开银行界面", "§8/ebank", "§a存钱生利息"));
-        inv.setItem(15, createMenuItem(Material.GOLD_BLOCK, "§6查看交易记录", "§7点击查看最近交易", "§8/ehistory", "§a最近10笔交易"));
+        inv.setItem(14, createMenuItem(Material.CHEST, "§6银行存取款", "§7点击打开银行界面", "§8/bank", "§a存款/取款/转账"));
         
         inv.setItem(40, createBackItem());
         inv.setItem(49, createCloseItem());
@@ -134,17 +131,8 @@ public class MenuCommand implements CommandExecutor {
         inv.setItem(15, createMenuItem(Material.BOOK, "§c发送公告", "§7点击发送服务器公告", "§8/ean <消息>", "§a全服广播"));
         inv.setItem(16, createMenuItem(Material.PAPER, "§c重载配置", "§7点击重载插件配置", "§8/eanreload", "§a重新加载配置"));
         
-        inv.setItem(19, createMenuItem(Material.PLAYER_HEAD, "§c玩家管理", "§7点击打开玩家管理", "§8/ekick <玩家>", "§a踢出/封禁玩家"));
         inv.setItem(20, createMenuItem(Material.GRASS_BLOCK, "§c设置出生点", "§7点击设置当前位置为出生点", "§8/esetspawn", "§a服务器主出生点"));
-        inv.setItem(21, createMenuItem(Material.BEACON, "§c时间控制", "§7点击更改服务器时间", "§8/etime <day|night>", "§a白天/黑夜"));
-        inv.setItem(22, createMenuItem(Material.CLOCK, "§c天气控制", "§7点击更改服务器天气", "§8/eweather <clear|rain>", "§a晴天/雨天"));
-        inv.setItem(23, createMenuItem(Material.COMMAND_BLOCK, "§c执行命令", "§7点击执行控制台命令", "§8/ecommand <命令>", "§a管理员命令"));
-        
-        inv.setItem(28, createMenuItem(Material.REDSTONE, "§c服务器信息", "§7点击查看服务器信息", "§8/einfo", "§aTPS/内存/在线人数"));
         inv.setItem(29, createMenuItem(Material.DEBUG_STICK, "§c调试模式", "§7点击切换调试模式", "§8/edebug", "§a显示调试信息"));
-        inv.setItem(30, createMenuItem(Material.ENDER_CHEST, "§c查看玩家背包", "§7点击查看玩家背包", "§8/einvsee <玩家>", "§a查看/编辑背包"));
-        inv.setItem(31, createMenuItem(Material.NAME_TAG, "§c修改玩家名称", "§7点击修改玩家显示名称", "§8/enick <玩家> <名称>", "§a自定义名称"));
-        inv.setItem(32, createMenuItem(Material.LEAD, "§c传送玩家", "§7点击传送指定玩家", "§8/etphere <玩家>", "§a传送到你这里"));
         
         inv.setItem(40, createBackItem());
         inv.setItem(49, createCloseItem());

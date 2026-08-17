@@ -110,7 +110,8 @@ public class ShopListener implements Listener {
         }
         
         player.getInventory().addItem(itemToGive);
-        player.sendMessage(ChatColor.GREEN + "成功购买 " + amount + " 个 " + formatMaterialName(item.getMaterial().name()) + 
+        recordCityTransaction(totalPrice);
+        player.sendMessage(ChatColor.GREEN + "成功购买 " + amount + " 个 " + formatMaterialName(item.getMaterial().name()) +
             "，花费 $" + totalPrice);
     }
     
@@ -126,12 +127,13 @@ public class ShopListener implements Listener {
         
         player.getInventory().removeItem(itemToSell);
         plugin.getEconomyManager().deposit(player, sellPrice);
-        
+        recordCityTransaction(sellPrice);
+
         if (item.getMaxStock() > 0) {
             shopManager.increaseStock(item.getKey(), amount);
         }
-        
-        player.sendMessage(ChatColor.GREEN + "成功出售 " + amount + " 个 " + formatMaterialName(item.getMaterial().name()) + 
+
+        player.sendMessage(ChatColor.GREEN + "成功出售 " + amount + " 个 " + formatMaterialName(item.getMaterial().name()) +
             "，获得 $" + sellPrice);
     }
     
@@ -154,13 +156,25 @@ public class ShopListener implements Listener {
         ItemStack itemToRemove = new ItemStack(item.getMaterial(), totalAmount);
         player.getInventory().removeItem(itemToRemove);
         plugin.getEconomyManager().deposit(player, sellPrice);
-        
+        recordCityTransaction(sellPrice);
+
         if (item.getMaxStock() > 0) {
             shopManager.increaseStock(item.getKey(), totalAmount);
         }
-        
-        player.sendMessage(ChatColor.GREEN + "成功出售 " + totalAmount + " 个 " + formatMaterialName(item.getMaterial().name()) + 
+
+        player.sendMessage(ChatColor.GREEN + "成功出售 " + totalAmount + " 个 " + formatMaterialName(item.getMaterial().name()) +
             "，获得 $" + sellPrice);
+    }
+
+    /**
+     * 向数字城市系统上报经济交易（城市系统未启用时静默跳过）
+     */
+    private void recordCityTransaction(double amount) {
+        org.ljcode.myPlugin.managers.DigitalCityManager cityManager =
+                org.ljcode.myPlugin.managers.DigitalCityManager.getInstance();
+        if (cityManager != null) {
+            cityManager.recordEconomyTransaction(amount);
+        }
     }
     
     private boolean hasInventorySpace(Player player, ItemStack item) {

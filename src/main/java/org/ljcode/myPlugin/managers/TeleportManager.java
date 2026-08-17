@@ -156,8 +156,9 @@ public class TeleportManager {
         // 从映射表中获取玩家的传送请求
         TeleportRequest request = teleportRequests.get(player.getUniqueId());
         
-        // 检查请求是否存在且是否已过期（超过60秒）
-        if (request != null && System.currentTimeMillis() - request.getTimestamp() > 60000) {
+        // 检查请求是否存在且是否已过期（超时时间由 config.yml teleport.request-timeout 决定，单位秒）
+        long timeoutMs = plugin.getConfig().getInt("teleport.request-timeout", 60) * 1000L;
+        if (request != null && System.currentTimeMillis() - request.getTimestamp() > timeoutMs) {
             // 请求已过期，从映射表中移除
             teleportRequests.remove(player.getUniqueId());
             return null;

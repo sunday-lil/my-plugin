@@ -360,11 +360,23 @@ public class K10TCPManager {
                 } else {
                     String errorMsg = "HTTP " + responseCode;
                     lastError = errorMsg;
-                    Bukkit.getLogger().warning("[K10数字孪生] ✗ 响应异常: " + errorMsg);
+                    isHealthy = false;
+                    retryCount++;
+                    Bukkit.getLogger().warning("[K10数字孪生] ✗ 响应异常: " + errorMsg +
+                        " (" + retryCount + "/" + maxRetries + ")");
+                    conn.disconnect();
+
+                    if (retryCount < maxRetries) {
+                        try {
+                            Thread.sleep(1000 * retryCount); // 递增延迟
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                    continue;
                 }
-                
-                conn.disconnect();
-                
+
             } catch (IOException e) {
                 retryCount++;
                 lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -424,17 +436,31 @@ public class K10TCPManager {
      */
     private String extractEventType(String message) {
         try {
-            int eventStart = message.indexOf("\"event\":\"");
-            if (eventStart == -1) return "unknown";
-            
-            eventStart += "\"event\":\"".length();
-            int eventEnd = message.indexOf("\"", eventStart);
-            if (eventEnd == -1) return "unknown";
-            
-            return message.substring(eventStart, eventEnd);
+            // 同时兼容两种字段约定：孪生事件用 "event"，数字城市系统用 "event_type"
+            String type = extractJsonStringField(message, "event_type");
+            if (type == null) {
+                type = extractJsonStringField(message, "event");
+            }
+            return (type != null && !type.isEmpty()) ? type : "unknown";
         } catch (Exception e) {
             return "parse_error";
         }
+    }
+
+    /**
+     * 从JSON消息中提取指定字符串字段的值
+     * @param message JSON消息
+     * @param field 字段名
+     * @return 字段值，未找到返回null
+     */
+    private String extractJsonStringField(String message, String field) {
+        String marker = "\"" + field + "\":\"";
+        int start = message.indexOf(marker);
+        if (start == -1) return null;
+        start += marker.length();
+        int end = message.indexOf("\"", start);
+        if (end == -1) return null;
+        return message.substring(start, end);
     }
     
     /**
@@ -444,8 +470,9 @@ public class K10TCPManager {
         long currentTime = System.currentTimeMillis();
         long timeSinceLastSuccess = currentTime - lastSuccessTime.get();
         
-        // 如果超过30秒没有成功连接，标记为不健康
-        if (timeSinceLastSuccess > 30000 && totalSuccessCount.get() > 0) {
+        // 只要尝试过发送：从未成功或超过30秒无成功连接，均标记为不健康
+        if (totalMessagesSent.get() > 0
+                && (totalSuccessCount.get() == 0 || timeSinceLastSuccess > 30000)) {
             isHealthy = false;
         }
     }
@@ -583,7 +610,7 @@ public class K10TCPManager {
     }
 
     /**
-     * 解析JSON响应字符串
+     * 解析JSON响应字符串（基于Gson，正确处理嵌套对象/数组/值内逗号）
      * @param jsonResponse JSON响应字符串
      * @return 解析后的Map数据
      */
@@ -592,85 +619,64 @@ public class K10TCPManager {
             return null;
         }
 
-        Map<String, Object> result = new HashMap<>();
-        
         try {
-            jsonResponse = jsonResponse.trim();
-            if (!jsonResponse.startsWith("{") || !jsonResponse.endsWith("}")) {
+            com.google.gson.JsonElement element = com.google.gson.JsonParser.parseString(jsonResponse.trim());
+            if (!element.isJsonObject()) {
                 Bukkit.getLogger().warning("[K10数字孪生] 响应不是有效的JSON对象: " + jsonResponse);
                 return null;
             }
 
-            jsonResponse = jsonResponse.substring(1, jsonResponse.length() - 1).trim();
-            
-            if (jsonResponse.isEmpty()) {
-                return result;
-            }
-
-            String[] pairs = jsonResponse.split(",");
-            for (String pair : pairs) {
-                pair = pair.trim();
-                if (pair.isEmpty()) continue;
-
-                int colonIndex = pair.indexOf(':');
-                if (colonIndex <= 0) continue;
-
-                String key = pair.substring(0, colonIndex).trim();
-                String value = pair.substring(colonIndex + 1).trim();
-
-                if (key.startsWith("\"") && key.endsWith("\"")) {
-                    key = key.substring(1, key.length() - 1);
-                }
-
-                Object parsedValue = parseJsonValue(value);
-                if (parsedValue != null) {
-                    result.put(key, parsedValue);
+            Map<String, Object> result = new HashMap<>();
+            for (Map.Entry<String, com.google.gson.JsonElement> entry : element.getAsJsonObject().entrySet()) {
+                Object value = jsonElementToObject(entry.getValue());
+                if (value != null) {
+                    result.put(entry.getKey(), value);
                 }
             }
-
+            return result;
         } catch (Exception e) {
             Bukkit.getLogger().warning("[K10数字孪生] JSON解析异常: " + e.getMessage());
             return null;
         }
-
-        return result;
     }
 
     /**
-     * 解析JSON值
-     * @param valueStr 值字符串
-     * @return 解析后的对象
+     * 将Gson的JsonElement转换为普通Java对象
+     * @param element Json元素
+     * @return Map/List/String/Boolean/Long/Double/null
      */
-    private Object parseJsonValue(String valueStr) {
-        if (valueStr == null || valueStr.trim().isEmpty()) {
+    private Object jsonElementToObject(com.google.gson.JsonElement element) {
+        if (element == null || element.isJsonNull()) {
             return null;
         }
-
-        valueStr = valueStr.trim();
-
-        if (valueStr.startsWith("\"") && valueStr.endsWith("\"")) {
-            return valueStr.substring(1, valueStr.length() - 1);
-        }
-
-        if ("true".equalsIgnoreCase(valueStr)) {
-            return true;
-        }
-        if ("false".equalsIgnoreCase(valueStr)) {
-            return false;
-        }
-        if ("null".equalsIgnoreCase(valueStr)) {
-            return null;
-        }
-
-        try {
-            if (valueStr.contains(".")) {
-                return Double.parseDouble(valueStr);
-            } else {
-                return Long.parseLong(valueStr);
+        if (element.isJsonObject()) {
+            Map<String, Object> map = new HashMap<>();
+            for (Map.Entry<String, com.google.gson.JsonElement> entry : element.getAsJsonObject().entrySet()) {
+                map.put(entry.getKey(), jsonElementToObject(entry.getValue()));
             }
-        } catch (NumberFormatException e) {
-            return valueStr;
+            return map;
         }
+        if (element.isJsonArray()) {
+            java.util.List<Object> list = new java.util.ArrayList<>();
+            for (com.google.gson.JsonElement item : element.getAsJsonArray()) {
+                list.add(jsonElementToObject(item));
+            }
+            return list;
+        }
+        if (element.isJsonPrimitive()) {
+            com.google.gson.JsonPrimitive primitive = element.getAsJsonPrimitive();
+            if (primitive.isBoolean()) {
+                return primitive.getAsBoolean();
+            }
+            if (primitive.isNumber()) {
+                double d = primitive.getAsDouble();
+                // 整数值返回Long，小数返回Double（与原解析行为保持一致）
+                return (d == Math.floor(d) && !Double.isInfinite(d))
+                        ? (Object) (long) d : (Object) d;
+            }
+            return primitive.getAsString();
+        }
+        return element.toString();
     }
 
     /**

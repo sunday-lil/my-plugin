@@ -91,25 +91,27 @@ public class DigitalCityManager {
     }
 
     private void startCityDashboard() {
+        long interval = plugin.getConfig().getLong("digital-city.dashboard-interval", 600L);
         cityDashboardTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
             try {
                 sendCityDashboard();
             } catch (Exception e) {
                 plugin.getLogger().warning("发送城市仪表盘数据失败: " + e.getMessage());
             }
-        }, 200L, 600L);
+        }, 200L, interval);
     }
 
     private void startStatisticsCollection() {
+        long interval = plugin.getConfig().getLong("digital-city.statistics-interval", 6000L);
         statisticsTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
             collectDetailedStatistics();
-        }, 600L, 6000L);
+        }, 600L, interval);
     }
 
     private void sendCityInitialization() {
         Map<String, Object> cityData = new HashMap<>();
         cityData.put("event_type", "CITY_INIT");
-        cityData.put("city_name", "Minecraft智慧城市");
+        cityData.put("city_name", plugin.getConfig().getString("digital-city.city-name", "Minecraft智慧城市"));
         cityData.put("founded_date", cityFoundedDate.getTime());
         cityData.put("server_version", Bukkit.getVersion());
         cityData.put("online_players", Bukkit.getOnlinePlayers().size());
@@ -117,7 +119,7 @@ public class DigitalCityManager {
 
         String cityJson = gson.toJson(cityData);
         k10Manager.sendMessageAsync(cityJson);
-        if (plugin.getConfig().getBoolean("environment.debug-mode", false)) {
+        if (plugin.getConfig().getBoolean("digital-city.debug-mode", false)) {
             plugin.getLogger().info("🏙️ 城市初始化数据已发送至K10");
         }
     }
@@ -420,8 +422,12 @@ public class DigitalCityManager {
     }
 
     private int getActiveBankAccounts() {
-        // 简化实现：返回在线玩家数量作为活跃账户数
-        return Bukkit.getOnlinePlayers().size();
+        // 使用银行系统的真实活跃账户数（余额大于0），而非在线玩家数
+        BankManager bankManager = plugin.getBankManager();
+        if (bankManager != null) {
+            return bankManager.getActiveAccountCount();
+        }
+        return 0;
     }
 
     private double getTotalServerWealth() {

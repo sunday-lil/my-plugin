@@ -24,10 +24,11 @@ public class PlayerListener implements Listener, CommandExecutor {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         
-        // 给新玩家初始资金1000
+        // 给新玩家发放初始资金（金额由 config.yml economy.starting-balance 决定）
         if (!plugin.getEconomyManager().hasPlayer(player.getUniqueId())) {
-            plugin.getEconomyManager().setBalance(player, 1000.0);
-            player.sendMessage(ChatColor.GREEN + "欢迎来到服务器! 你获得了 $1000 初始资金!");
+            double startingBalance = plugin.getConfig().getDouble("economy.starting-balance", 100.0);
+            plugin.getEconomyManager().setBalance(player, startingBalance);
+            player.sendMessage(ChatColor.GREEN + "欢迎来到服务器! 你获得了 $" + startingBalance + " 初始资金!");
         }
     }
     

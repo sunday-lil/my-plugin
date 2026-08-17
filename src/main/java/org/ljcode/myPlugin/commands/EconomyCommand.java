@@ -127,12 +127,24 @@ public class EconomyCommand implements CommandExecutor {
         
         boolean success = economyManager.transfer(player, targetPlayer, amount);
         if (success) {
+            recordCityTransaction(amount);
             player.sendMessage(ChatColor.GREEN + "成功向 " + ChatColor.YELLOW + targetPlayer.getName() + ChatColor.GREEN + " 转账 $" + ChatColor.YELLOW + economyManager.formatAmount(amount));
             targetPlayer.sendMessage(ChatColor.GREEN + player.getName() + " 向你转账 $" + ChatColor.YELLOW + economyManager.formatAmount(amount));
         } else {
             player.sendMessage(ChatColor.RED + "转账失败!");
         }
         return true;
+    }
+
+    /**
+     * 向数字城市系统上报经济交易（城市系统未启用时静默跳过）
+     */
+    private void recordCityTransaction(double amount) {
+        org.ljcode.myPlugin.managers.DigitalCityManager cityManager =
+                org.ljcode.myPlugin.managers.DigitalCityManager.getInstance();
+        if (cityManager != null) {
+            cityManager.recordEconomyTransaction(amount);
+        }
     }
     
     private boolean handleBalanceTop(CommandSender sender) {

@@ -133,12 +133,6 @@ public class MenuListener implements Listener {
         } else if (slot == 14 && clickedItem.getType() == Material.GRASS_BLOCK) {
             player.closeInventory();
             player.sendMessage(ChatColor.YELLOW + "请使用 /egm <0|1|2|3> [玩家] 切换游戏模式");
-        } else if (slot == 15 && clickedItem.getType() == Material.POTION) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /espeed [玩家] 提升移动速度");
-        } else if (slot == 16 && clickedItem.getType() == Material.NETHER_STAR) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /eclear [玩家] 清除药水效果");
         }
     }
     
@@ -158,10 +152,7 @@ public class MenuListener implements Listener {
             Bukkit.dispatchCommand(player, "ebalancetop");
         } else if (slot == 14 && clickedItem.getType() == Material.CHEST) {
             player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /ebank 打开银行界面");
-        } else if (slot == 15 && clickedItem.getType() == Material.GOLD_BLOCK) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /ehistory 查看交易记录");
+            Bukkit.dispatchCommand(player, "bank");
         }
     }
     
@@ -194,33 +185,10 @@ public class MenuListener implements Listener {
             player.sendMessage(ChatColor.YELLOW + "请使用 /ean <消息> 发送公告");
         } else if (slot == 16 && clickedItem.getType() == Material.PAPER) {
             Bukkit.dispatchCommand(player, "eanreload");
-        } else if (slot == 19 && clickedItem.getType() == Material.PLAYER_HEAD) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /ekick <玩家> 踢出玩家");
         } else if (slot == 20 && clickedItem.getType() == Material.GRASS_BLOCK) {
             Bukkit.dispatchCommand(player, "esetspawn");
-        } else if (slot == 21 && clickedItem.getType() == Material.BEACON) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /etime <day|night> 更改时间");
-        } else if (slot == 22 && clickedItem.getType() == Material.CLOCK) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /eweather <clear|rain> 更改天气");
-        } else if (slot == 23 && clickedItem.getType() == Material.COMMAND_BLOCK) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /ecommand <命令> 执行命令");
-        } else if (slot == 28 && clickedItem.getType() == Material.REDSTONE) {
-            Bukkit.dispatchCommand(player, "einfo");
         } else if (slot == 29 && clickedItem.getType() == Material.DEBUG_STICK) {
             Bukkit.dispatchCommand(player, "edebug");
-        } else if (slot == 30 && clickedItem.getType() == Material.ENDER_CHEST) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /einvsee <玩家> 查看玩家背包");
-        } else if (slot == 31 && clickedItem.getType() == Material.NAME_TAG) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /enick <玩家> <名称> 修改玩家名称");
-        } else if (slot == 32 && clickedItem.getType() == Material.LEAD) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "请使用 /etphere <玩家> 传送玩家到你这里");
         }
     }
 }

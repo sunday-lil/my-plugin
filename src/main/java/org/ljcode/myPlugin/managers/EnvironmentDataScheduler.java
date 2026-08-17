@@ -89,7 +89,9 @@ public class EnvironmentDataScheduler {
             }
         };
 
-        calculationTask.runTaskTimerAsynchronously(plugin, 20L, currentInterval);
+        // 必须使用同步任务：calculateAndSend 会调用 world.getBlockAt / getOnlinePlayers
+        // 等非线程安全的Bukkit API；HTTP发送由K10管理器的独立线程池处理，不会阻塞主线程
+        calculationTask.runTaskTimer(plugin, 20L, currentInterval);
 
         responseCheckTask = new BukkitRunnable() {
             @Override

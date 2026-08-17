@@ -158,6 +158,12 @@ public class WebServer extends NanoHTTPD {
     }
 
     private Response handleApiRequest(IHTTPSession session, Method method, String uri) {
+        // 认证检查：IP白名单 + 可选token（静态页面不受影响）
+        if (!isAuthorized(session)) {
+            return newFixedLengthResponse(Response.Status.FORBIDDEN, MIME_PLAINTEXT,
+                    "Access denied: IP not allowed or invalid token");
+        }
+
         if ("/api/config".equals(uri)) {
             if (method == Method.GET) {
                 return handleGetConfig();
@@ -167,6 +173,62 @@ public class WebServer extends NanoHTTPD {
         }
 
         return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "API endpoint not found");
+    }
+
+    /**
+     * API访问认证：
+     * 1. IP白名单（web.allowed-ips，支持 * 结尾的通配前缀，如 192.168.*）
+     * 2. 可选token（web.api-token 非空时，请求必须带 ?token=xxx 或 X-API-Token 头）
+     * @param session HTTP会话
+     * @return 是否放行
+     */
+    private boolean isAuthorized(IHTTPSession session) {
+        // 1. IP 白名单检查
+        String clientIp = session.getRemoteIpAddress();
+        java.util.List<String> allowedIps = plugin.getConfig().getStringList("web.allowed-ips");
+        if (allowedIps == null || allowedIps.isEmpty()) {
+            // 未配置时默认仅允许本机访问，避免局域网任意主机篡改服务器配置
+            allowedIps = java.util.Arrays.asList("127.0.0.1", "::1", "localhost");
+        }
+
+        boolean ipAllowed = false;
+        for (String pattern : allowedIps) {
+            if (matchesIpPattern(clientIp, pattern)) {
+                ipAllowed = true;
+                break;
+            }
+        }
+        if (!ipAllowed) {
+            plugin.getLogger().warning("[Web] 拒绝来自未授权IP的API请求: " + clientIp);
+            return false;
+        }
+
+        // 2. 可选token检查（未配置token时跳过）
+        String requiredToken = plugin.getConfig().getString("web.api-token", "");
+        if (requiredToken != null && !requiredToken.isEmpty()) {
+            String provided = session.getParms().get("token");
+            if (provided == null) {
+                provided = session.getHeaders().get("x-api-token");
+            }
+            if (provided == null || !provided.equals(requiredToken)) {
+                plugin.getLogger().warning("[Web] API token 校验失败，IP: " + clientIp);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * IP匹配：支持精确匹配和 * 结尾的前缀通配（如 192.168.*）
+     */
+    private boolean matchesIpPattern(String clientIp, String pattern) {
+        if (pattern == null || clientIp == null) {
+            return false;
+        }
+        if (pattern.endsWith("*")) {
+            return clientIp.startsWith(pattern.substring(0, pattern.length() - 1));
+        }
+        return pattern.equals(clientIp);
     }
 
     private Response handleGetConfig() {
@@ -262,6 +324,9 @@ public class WebServer extends NanoHTTPD {
 
             // 重新加载插件配置
             plugin.reloadConfig();
+
+            // 同步新配置对象到K10链路各持有者，确保Web修改的K10设置立即生效
+            plugin.syncK10Config();
 
             return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"success\",\"message\":\"Config saved successfully\"}");
         } catch (Exception e) {

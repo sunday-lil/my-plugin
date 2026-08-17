@@ -24,7 +24,7 @@ import org.ljcode.myPlugin.managers.K10TCPManager;
 public class K10DigitalTwinListener implements Listener {
     
     private final K10TCPManager tcpManager;
-    private final FileConfiguration config;
+    private FileConfiguration config;
     
     // 统计信息
     private long totalEventsProcessed = 0;
@@ -44,6 +44,14 @@ public class K10DigitalTwinListener implements Listener {
         
         Bukkit.getLogger().info("[K10数字孪生] 事件监听器已初始化 (优化版)");
         Bukkit.getLogger().info("[K10数字孪生] 功能: 安全清理 | 智能过滤 | 结构化日志");
+    }
+
+    /**
+     * 更新配置引用（配置重载后由插件主类调用，避免持有过期配置对象）
+     * @param config 最新的配置文件对象
+     */
+    public void setConfig(FileConfiguration config) {
+        this.config = config;
     }
     
     /**

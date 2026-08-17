@@ -69,6 +69,17 @@ economy:
   # 小数位数
   decimal-places: 2
 
+# 银行系统设置（独立于钱包，数据存于 bank.yml）
+bank:
+  # 新开银行账户的初始余额
+  initial-balance: 1000.0
+  # 单笔最低存款金额
+  min-deposit: 1.0
+  # 单笔最高存款金额
+  max-deposit: 1000000.0
+  # 银行内转账手续费（固定金额，0为免费）
+  transfer-fee: 0.0
+
 # 家园系统设置
 homes:
   # 是否启用家园系统
@@ -406,6 +417,19 @@ chat-hints:
 web-server:
   # Web服务器端口
   port: 8080
+
+# Web控制台API访问控制
+web:
+  # 允许访问 /api/* 的IP白名单，支持 * 结尾的通配前缀（如 192.168.*）
+  # 留空或不配置时默认仅允许本机(127.0.0.1/::1)访问
+  allowed-ips:
+    - "127.0.0.1"
+    - "::1"
+    - "192.168.*"
+    - "10.*"
+  # 可选API令牌：设置非空值后，API请求必须携带 ?token=xxx 或 X-API-Token 请求头
+  # 留空表示仅使用IP白名单
+  api-token: ""
 
 # 调试信息设置
 debug-info:

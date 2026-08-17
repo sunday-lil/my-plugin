@@ -16,7 +16,7 @@ public class BankCommand implements CommandExecutor {
     
     public BankCommand(MyPlugin plugin) {
         this.plugin = plugin;
-        this.bankManager = new BankManager(plugin);
+        this.bankManager = plugin.getBankManager();
     }
     
     @Override

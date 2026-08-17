@@ -1,13 +1,19 @@
 /*!
-
-Minecraft × K10 联动接收器 (数字城市管理中心版)
-新增完整城市管理系统UI，支持多界面切换
-包含：聊天室、环境监控、城市仪表盘三大模块 */
-#include "unihiker_k10.h"
-#include <WiFi.h>
-#include <WebServer.h>
-#include <Preferences.h>
-#include <SD.h>
+Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.1
+优化内容：
+1. 使用 ArduinoJson 解析 JSON，支持嵌套字段
+2. 环境数据显示非阻塞，不阻塞主循环
+3. 按钮状态机处理，长按短按区分明确
+4. 日志缓冲批量写入 SD 卡
+5. 城市事件环形缓冲区
+6. 增强代码健壮性
+   */
+   #include "unihiker_k10.h"
+   #include <WiFi.h>
+   #include <WebServer.h>
+   #include <Preferences.h>
+   #include <SD.h>
+   #include <ArduinoJsonK10.h>      // 请安装 ArduinoJson 库 v6
 
 // ================= 全局对象 =================
 UNIHIKER_K10 k10;
@@ -16,7 +22,6 @@ Preferences prefs;
 
 bool needApConfig = false;
 String deviceIP = "";
-
 String cachedSsidList = "";
 bool scanDone = false;
 
@@ -26,8 +31,10 @@ String msgList[MAX_MSG];
 int msgCount = 0;
 int msgHead = 0;
 
-File logFile;
+String logBuffer = "";
 bool sdOk = false;
+unsigned long lastLogFlush = 0;
+const unsigned long LOG_FLUSH_INTERVAL = 5000;
 
 // ---------- 状态栏自动恢复 ----------
 String defaultStatusLine1 = "";
@@ -95,8 +102,8 @@ CityPopulationStats cityPopulation = {0, 0, 0, 0, 0};
 CityEconomyStats cityEconomy = {0, 0, 0, 0.0};
 CityActivityStats cityActivity = {0, 0, 0, "MINIMAL"};
 
-// ---------- 最近事件列表 ----------
-#define MAX_CITY_EVENTS 6
+// ---------- 最近事件列表（环形缓冲区） ----------
+#define MAX_CITY_EVENTS 10
 struct CityEventItem {
 String type;
 String source;
@@ -106,6 +113,7 @@ unsigned long timestamp;
 };
 
 CityEventItem cityEvents[MAX_CITY_EVENTS];
+int cityEventHead = 0;
 int cityEventCount = 0;
 
 // ---------- 城市初始化标志 ----------
@@ -113,15 +121,37 @@ bool cityInitialized = false;
 String cityName = "Minecraft智慧城市";
 unsigned long cityFoundedTime = 0;
 
+// ---------- 环境数据显示状态（非阻塞） ----------
+struct EnvironmentDisplayState {
+bool active;
+unsigned long startTime;
+unsigned long duration;
+String playerName;
+String temperature;
+String humidity;
+String light;
+String windSpeed;
+String weather;
+String biome;
+} envState = {false, 0, 5000, "", "", "", "", "", "", ""};
+
+// ---------- 按钮状态机 ----------
+enum ButtonState { BTN_IDLE, BTN_PRESSED, BTN_PROCESSED };
+ButtonState btnAState = BTN_IDLE;
+ButtonState btnBState = BTN_IDLE;
+unsigned long btnAPressTime = 0;
+unsigned long btnBPressTime = 0;
+
 // ============= 函数前置声明 =============
 void drawUI(String statusLine1, String statusLine2, uint32_t statusColor1 = 0x00FFAA, uint32_t statusColor2 = 0xCCCCCC);
 void drawEnvironmentUI(String playerName, String temperature, String humidity, String light, String windSpeed, String weather, String biome);
 void drawCityDashboard();
-String getJsonValue(String data, String key);
+String getJsonValue(String data, String key);  // 新版本使用 ArduinoJson
 String escapeHtml(String s);
 String escapeAttr(String s);
 String extractJsonObject(String data, String key);
 void addMessage(String msg);
+void flushLogBuffer();
 void showTempStatus(String line1, String line2, uint32_t color1, uint32_t color2);
 void setDefaultStatus(String line1, String line2, uint32_t color1 = 0x00FFAA, uint32_t color2 = 0xCCCCCC);
 void blinkLED(uint32_t color);
@@ -131,6 +161,7 @@ void switchToCityDashboardMode();
 void cycleDisplayMode();
 void checkAutoReturnToChat();
 void checkRestoreStatus();
+void checkEnvironmentDisplayTimeout();
 void updateStatus(String line1, String line2, uint32_t color1 = 0xFFFFFF, uint32_t color2 = 0x00FFAA);
 uint32_t getTPSColor(float tps);
 uint32_t getCityStatusColor(String status);
@@ -149,6 +180,8 @@ void handleConfigPage();
 void handleSaveWifi();
 void handleStatusPage();
 void handleReset();
+void handleButtonA();
+void handleButtonB();
 
 // ============= 全局 LED 闪烁函数 =============
 void blinkLED(uint32_t color) {
@@ -201,7 +234,6 @@ switchToChatMode();
 }
 
 // ---------- 屏幕工具 - 聊天UI ----------
-// 注意：此处去掉默认参数，只保留声明中的默认值
 void drawUI(String statusLine1, String statusLine2, uint32_t statusColor1, uint32_t statusColor2) {
 k10.canvas->canvasClear();
 k10.setScreenBackground(0x0A0A1A);
@@ -244,7 +276,7 @@ else if (display.startsWith("[城市]")) msgColor = 0xFFDD44;
 }
 
 // 底部装饰文字和操作提示
-k10.canvas->canvasText("◆ MC Bridge v3.0 ◆", 60, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
+k10.canvas->canvasText("◆ MC Bridge v3.1 ◆", 60, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
 k10.canvas->canvasText("按B键切换界面", 70, 268, 0x556677, k10.canvas->eCNAndENFont16, 18, true);
 
 k10.canvas->updateCanvas();
@@ -337,7 +369,7 @@ k10.canvas->canvasText(uptimeStr, 155, 90, 0xFFFFFF, k10.canvas->eCNAndENFont16,
 // ========== 第二行：城市状态指示 ==========
 k10.canvas->canvasText("📊 城市状态:", 12, 118, 0xCCCCCC, k10.canvas->eCNAndENFont16, 24, true);
 
-// 状态颜色指示条 - 修复：使用 canvasRectangle 替代 canvasFillRect
+// 状态颜色指示条
 uint32_t statusBarColor = getCityStatusColor(cityBasic.cityStatus);
 k10.canvas->canvasRectangle(110, 118, 100, 18, statusBarColor, statusBarColor, true);
 
@@ -425,23 +457,11 @@ return String(days) + "天" + String(remainderHours) + "时";
 }
 }
 
-// ============= 城市事件管理 =============
+// ============= 城市事件管理（环形缓冲区） =============
 void addCityEvent(String type, String source, String description, uint32_t color) {
-// 移动现有事件
-for (int i = MAX_CITY_EVENTS - 1; i > 0; i--) {
-cityEvents[i] = cityEvents[i-1];
-}
-
-// 添加新事件到头部
-cityEvents[0].type = type;
-cityEvents[0].source = source;
-cityEvents[0].description = description;
-cityEvents[0].color = color;
-cityEvents[0].timestamp = millis();
-
-if (cityEventCount < MAX_CITY_EVENTS) {
-cityEventCount++;
-}
+cityEvents[cityEventHead] = {type, source, description, color, millis()};
+cityEventHead = (cityEventHead + 1) % MAX_CITY_EVENTS;
+if (cityEventCount < MAX_CITY_EVENTS) cityEventCount++;
 }
 
 // ============= 城市数据处理函数 =============
@@ -465,7 +485,7 @@ Serial.println("[城市] 初始化完成: " + cityName);
 }
 
 void processCityDashboardData(String body) {
-// 解析基础统计数据 - 使用嵌套路径 basic_stats.xxx
+// 使用新解析函数，支持嵌套字段
 String onlinePlayersStr = getJsonValue(body, "basic_stats.online_players");
 String maxPlayersStr = getJsonValue(body, "basic_stats.max_players");
 String tpsStr = getJsonValue(body, "basic_stats.tps");
@@ -480,38 +500,34 @@ if (uptimeStr != "") cityBasic.uptimeHours = uptimeStr.toFloat();
 
 cityBasic.playerLoad = cityBasic.maxPlayers > 0 ? (cityBasic.onlinePlayers * 100 / cityBasic.maxPlayers) : 0;
 
-    // 解析人口统计 - 使用嵌套路径 population_stats.xxx
-    String totalJoinedStr = getJsonValue(body, "population_stats.total_joined");
-    String totalDeathsStr = getJsonValue(body, "population_stats.total_deaths");
-    String avgSessionStr = getJsonValue(body, "population_stats.avg_session_time");
-    String peakTodayStr = getJsonValue(body, "population_stats.peak_today");
+String totalJoinedStr = getJsonValue(body, "population_stats.total_joined");
+String totalDeathsStr = getJsonValue(body, "population_stats.total_deaths");
+String avgSessionStr = getJsonValue(body, "population_stats.avg_session_time");
+String peakTodayStr = getJsonValue(body, "population_stats.peak_today");
 
-    if (totalJoinedStr != "") cityPopulation.totalJoined = totalJoinedStr.toInt();
-    if (totalDeathsStr != "") cityPopulation.totalDeaths = totalDeathsStr.toInt();
-    if (avgSessionStr != "") cityPopulation.avgSessionTime = avgSessionStr.toInt();
-    if (peakTodayStr != "") cityPopulation.peakToday = peakTodayStr.toInt();
-    cityPopulation.currentOnline = cityBasic.onlinePlayers;
+if (totalJoinedStr != "") cityPopulation.totalJoined = totalJoinedStr.toInt();
+if (totalDeathsStr != "") cityPopulation.totalDeaths = totalDeathsStr.toInt();
+if (avgSessionStr != "") cityPopulation.avgSessionTime = avgSessionStr.toInt();
+if (peakTodayStr != "") cityPopulation.peakToday = peakTodayStr.toInt();
+cityPopulation.currentOnline = cityBasic.onlinePlayers;
 
-    // 解析活动统计 - 使用嵌套路径 activity_stats.xxx
-    String messagesStr = getJsonValue(body, "activity_stats.messages_sent");
-    String blocksBrokenStr = getJsonValue(body, "activity_stats.blocks_broken");
-    String blocksPlacedStr = getJsonValue(body, "activity_stats.blocks_placed");
-    String activityLevelStr = getJsonValue(body, "activity_stats.activity_level");
+String messagesStr = getJsonValue(body, "activity_stats.messages_sent");
+String blocksBrokenStr = getJsonValue(body, "activity_stats.blocks_broken");
+String blocksPlacedStr = getJsonValue(body, "activity_stats.blocks_placed");
+String activityLevelStr = getJsonValue(body, "activity_stats.activity_level");
 
-    if (messagesStr != "") cityActivity.messagesSent = messagesStr.toInt();
-    if (blocksBrokenStr != "") cityActivity.blocksBroken = blocksBrokenStr.toInt();
-    if (blocksPlacedStr != "") cityActivity.blocksPlaced = blocksPlacedStr.toInt();
-    if (activityLevelStr != "") cityActivity.activityLevel = activityLevelStr;
+if (messagesStr != "") cityActivity.messagesSent = messagesStr.toInt();
+if (blocksBrokenStr != "") cityActivity.blocksBroken = blocksBrokenStr.toInt();
+if (blocksPlacedStr != "") cityActivity.blocksPlaced = blocksPlacedStr.toInt();
+if (activityLevelStr != "") cityActivity.activityLevel = activityLevelStr;
 
-    // 调试输出：显示解析到的关键数据
-    Serial.println("[城市] 数据更新: 在线=" + String(cityBasic.onlinePlayers) + 
-                   ", TPS=" + String(cityBasic.tps) + 
-                   ", 总入驻=" + String(cityPopulation.totalJoined));
+Serial.println("[城市] 数据更新: 在线=" + String(cityBasic.onlinePlayers) +
+", TPS=" + String(cityBasic.tps) +
+", 总入驻=" + String(cityPopulation.totalJoined));
 
-    // 如果当前在城市模式，刷新显示
-    if (currentDisplayMode == MODE_CITY_DASHBOARD) {
-        drawCityDashboard();
-    }
+if (currentDisplayMode == MODE_CITY_DASHBOARD) {
+drawCityDashboard();
+}
 }
 
 void processCityEventData(String eventDataStr) {
@@ -520,7 +536,6 @@ String eventSource = getJsonValue(eventDataStr, "source");
 String eventDesc = getJsonValue(eventDataStr, "description");
 String eventColorStr = getJsonValue(eventDataStr, "color");
 
-// 解析颜色（格式：#RRGGBB）
 uint32_t color = 0xFFFFFF;
 if (eventColorStr.startsWith("#")) {
 color = (uint32_t)strtol(eventColorStr.substring(1).c_str(), NULL, 16);
@@ -528,11 +543,9 @@ color = (uint32_t)strtol(eventColorStr.substring(1).c_str(), NULL, 16);
 
 addCityEvent(eventType, eventSource, eventDesc, color);
 
-// 添加到聊天记录
 String chatMsg = "[城市] 🔔 " + eventDesc;
 addMessage(chatMsg);
 
-// 根据事件类型设置临时状态
 if (eventType == "PLAYER_JOIN") {
 showTempStatus("✨ 新市民", eventSource + " 加入城市", 0x66FF66, 0xFFFFFF);
 } else if (eventType == "PLAYER_QUIT") {
@@ -549,22 +562,30 @@ blinkLED(0xFFDD44);
 }
 }
 
-// 添加一条消息到队列
+// ---------- 日志与消息 ----------
 void addMessage(String msg) {
-if (sdOk) {
-logFile = SD.open("/log.txt", FILE_APPEND);
-if (logFile) {
-logFile.println(msg);
-logFile.close();
-}
-}
+// 存入显示队列
 msgList[msgHead] = msg;
 msgHead = (msgHead + 1) % MAX_MSG;
 if (msgCount < MAX_MSG) msgCount++;
+
+// 加入日志缓冲
+logBuffer += msg + "\n";
+if (logBuffer.length() > 1024) flushLogBuffer(); // 防止缓冲过大
 }
 
-// 设置默认状态
-// 注意：此处去掉默认参数，只保留声明中的默认值
+void flushLogBuffer() {
+if (!sdOk || logBuffer.length() == 0) return;
+File logFile = SD.open("/log.txt", FILE_APPEND);
+if (logFile) {
+logFile.print(logBuffer);
+logFile.close();
+logBuffer = "";
+lastLogFlush = millis();
+}
+}
+
+// ---------- 状态栏管理 ----------
 void setDefaultStatus(String line1, String line2, uint32_t color1, uint32_t color2) {
 defaultStatusLine1 = line1;
 defaultStatusLine2 = line2;
@@ -575,7 +596,6 @@ drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
 }
 }
 
-// 显示临时状态
 void showTempStatus(String line1, String line2, uint32_t color1, uint32_t color2) {
 tempStatusLine1 = line1;
 tempStatusLine2 = line2;
@@ -597,9 +617,21 @@ drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
 }
 }
 
-// 注意：此处去掉默认参数，只保留声明中的默认值
 void updateStatus(String line1, String line2, uint32_t color1, uint32_t color2) {
 showTempStatus(line1, line2, color1, color2);
+}
+
+// ============= 环境数据显示非阻塞管理 =============
+void checkEnvironmentDisplayTimeout() {
+if (envState.active && (millis() - envState.startTime >= envState.duration)) {
+envState.active = false;
+// 恢复当前模式界面
+if (currentDisplayMode == MODE_CHAT) {
+drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
+} else if (currentDisplayMode == MODE_CITY_DASHBOARD) {
+drawCityDashboard();
+}
+}
 }
 
 // ============= HTML 工具函数 =============
@@ -607,89 +639,55 @@ String escapeHtml(String s) {
 s.replace("&", "&amp;");
 s.replace("<", "&lt;");
 s.replace(">", "&gt;");
-s.replace("\"", "&quot;"); // 修复：正确转义引号
+s.replace("\"", "&quot;");
 return s;
 }
 
 String escapeAttr(String s) {
 s.replace("&", "&amp;");
-s.replace("\"", "&quot;"); // 修复：正确转义引号
+s.replace("\"", "&quot;");
 return s;
 }
 
+// ============= JSON 解析（使用 ArduinoJson） =============
 String getJsonValue(String data, String key) {
-// 先尝试字符串格式："key":"value"
-String stringKey = "\"" + key + "\":\"";
-int start = data.indexOf(stringKey);
-if (start != -1) {
-start += stringKey.length();
-int end = data.indexOf("\"", start);
-if (end != -1) {
-return data.substring(start, end);
-}
+DynamicJsonDocument doc(2048);
+DeserializationError error = deserializeJson(doc, data);
+if (error) {
+// 如果解析失败，返回空，保留兼容性
+return "";
 }
 
-// 再尝试数值格式："key":123.45
-String numberKey = "\"" + key + "\":";
-start = data.indexOf(numberKey);
-if (start != -1) {
-start += numberKey.length();
-int end = start;
-while (end < data.length()) {
-char c = data.charAt(end);
-if (c == ',' || c == '}' || c == ' ' || c == '\n' || c == '\r') {
-break;
-}
-end++;
-}
-if (end > start) {
-return data.substring(start, end);
-}
-}
-
-// 尝试嵌套对象中的简单值
-// 处理 basic_stats.xxx 格式
-if (key.indexOf('.') != -1) { // 修复：使用 indexOf 替代 contains
+if (key.indexOf('.') != -1) {
+// 嵌套路径，如 "basic_stats.online_players"
 String prefix = key.substring(0, key.indexOf('.'));
 String subkey = key.substring(key.indexOf('.') + 1);
-
-    // 查找前缀对象
-    String objKey = "\"" + prefix + "\":{";
-    int objStart = data.indexOf(objKey);
-    if (objStart != -1) {
-      objStart += objKey.length() - 1; // 包含 {
-      // 在对象内查找子键
-      String subStringKey = "\"" + subkey + "\":\"";
-      int subStart = data.indexOf(subStringKey, objStart);
-      if (subStart != -1) {
-        subStart += subStringKey.length();
-        int subEnd = data.indexOf("\"", subStart);
-        if (subEnd != -1) {
-          return data.substring(subStart, subEnd);
-        }
-      }
-      
-      // 尝试数值格式
-      String subNumberKey = "\"" + subkey + "\":";
-      subStart = data.indexOf(subNumberKey, objStart);
-      if (subStart != -1) {
-        subStart += subNumberKey.length();
-        int subEnd = subStart;
-        while (subEnd < data.length()) {
-          char c = data.charAt(subEnd);
-          if (c == ',' || c == '}' || c == ' ' || c == '\n') {
-            break;
-          }
-          subEnd++;
-        }
-        if (subEnd > subStart) {
-          return data.substring(subStart, subEnd);
-        }
-      }
-    }
+JsonVariant nested = doc[prefix][subkey];
+if (!nested.isNull()) {
+if (nested.is<String>()) return nested.as<String>();
+else return String(nested.as<float>()); // 数字转字符串
+}
+return "";
 }
 
+JsonVariant value = doc[key];
+if (!value.isNull()) {
+if (value.is<String>()) return value.as<String>();
+else return String(value.as<float>());
+}
 return "";
+}
+
+// 提取 JSON 对象（用于 event 字段）
+String extractJsonObject(String data, String key) {
+DynamicJsonDocument doc(2048);
+DeserializationError error = deserializeJson(doc, data);
+if (error) return "";
+JsonObject obj = doc[key];
+if (obj.isNull()) return "";
+String result;
+serializeJson(obj, result);
+return result;
 }
 
 // ============= 配网 Web 页面 =============
@@ -763,7 +761,7 @@ String windSpeed = getJsonValue(body, "wind_speed");
 String weather = getJsonValue(body, "weather");
 String biome = getJsonValue(body, "biome");
 
-// RGB灯闪烁提示
+// LED 提示
 k10.rgb->write(-1, 0x00AAFF);
 delay(200);
 k10.rgb->write(-1, 0x000000);
@@ -772,33 +770,25 @@ k10.rgb->write(-1, 0x00AAFF);
 delay(200);
 k10.rgb->write(-1, 0x000000);
 
-// 添加消息到聊天记录
-String envMsg = "[环境] 🌍 " + playerName;
-addMessage(envMsg);
+// 添加聊天消息
+addMessage("[环境] 🌍 " + playerName);
 
-// 显示完整的环境数据UI
+// 显示环境界面（立即显示，但不阻塞）
 drawEnvironmentUI(playerName, temperature, humidity, light, windSpeed, weather, biome);
 
-// 构建响应JSON
-String response = "{\"response_type\":\"acknowledgment\",\"status\":\"success\",\"request_id\":\"" + requestId + "\",\"message\":\"环境数据已接收\",\"data\":{\"temperature\":\"" + temperature + "\",\"humidity\":\"" + humidity + "\",\"light\":\"" + light + "\",\"wind_speed\":\"" + windSpeed + "\",\"weather\":\"" + weather + "\",\"biome\":\"" + biome + "\"}}";
+// 设置环境显示状态，用于超时恢复
+envState.active = true;
+envState.startTime = millis();
+envState.duration = 5000;
 
+// 响应 JSON
+String response = "{\"response_type\":\"acknowledgment\",\"status\":\"success\",\"request_id\":\"" + requestId + "\",\"message\":\"环境数据已接收\",\"data\":{\"temperature\":\"" + temperature + "\",\"humidity\":\"" + humidity + "\",\"light\":\"" + light + "\",\"wind_speed\":\"" + windSpeed + "\",\"weather\":\"" + weather + "\",\"biome\":\"" + biome + "\"}}";
 server.send(200, "application/json", response);
 
-// 记录到SD卡
+// 记录到 SD 卡（通过缓冲）
 if (sdOk) {
-logFile = SD.open("/env_log.txt", FILE_APPEND);
-if (logFile) {
-logFile.println("[" + String(millis()) + "] " + playerName + " - T:" + temperature + "°C H:" + humidity + "% L:" + light + " W:" + windSpeed + "m/s Weather:" + weather + " Biome:" + biome);
-logFile.close();
-}
-}
-
-// 5秒后恢复默认UI或当前模式
-delay(5000);
-if (currentDisplayMode == MODE_CHAT) {
-drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
-} else if (currentDisplayMode == MODE_CITY_DASHBOARD) {
-drawCityDashboard();
+logBuffer += "[" + String(millis()) + "] " + playerName + " - T:" + temperature + "°C H:" + humidity + "% L:" + light + " W:" + windSpeed + "m/s Weather:" + weather + " Biome:" + biome + "\n";
+if (logBuffer.length() > 1024) flushLogBuffer();
 }
 }
 
@@ -810,38 +800,15 @@ processCityInitData(body);
 } else if (eventType == "CITY_DASHBOARD") {
 processCityDashboardData(body);
 } else if (eventType == "CITY_EVENT") {
-// 提取嵌套的event对象
 String eventData = extractJsonObject(body, "event");
 if (eventData != "") {
 processCityEventData(eventData);
 }
 } else if (eventType == "DETAILED_STATISTICS") {
-// 详细统计数据处理（可选）
 Serial.println("[城市] 收到详细统计数据");
 }
 
 server.send(200, "application/json", "{\"status\":\"ok\"}");
-}
-
-String extractJsonObject(String data, String key) {
-String searchKey = "\"" + key + "\":{";
-int start = data.indexOf(searchKey);
-if (start == -1) return "";
-
-start += searchKey.length() - 1; // 包含 {
-
-int braceCount = 1;
-int i = start;
-while (i < data.length() && braceCount > 0) {
-if (data.charAt(i) == '{') braceCount++;
-else if (data.charAt(i) == '}') braceCount--;
-i++;
-}
-
-if (braceCount == 0) {
-return data.substring(start, i - 1);
-}
-return "";
 }
 
 void handleMcEvent() {
@@ -865,33 +832,24 @@ return;
 // 传统事件处理
 if (event == "player_join") {
 blinkLED(0x00FF66);
-String logMsg = "[加入] ⭐ " + player;
-addMessage(logMsg);
+addMessage("[加入] ⭐ " + player);
 showTempStatus("✨ 欢迎!", player + " 加入了游戏", 0x00FF66, 0xFFFFFF);
-}
-else if (event == "player_quit") {
+} else if (event == "player_quit") {
 blinkLED(0xFFAA44);
-String logMsg = "[离开] 👋 " + player;
-addMessage(logMsg);
+addMessage("[离开] 👋 " + player);
 showTempStatus("👋 再见!", player + " 离开了游戏", 0xFFAA44, 0xFFFFFF);
-}
-else if (event == "player_death") {
+} else if (event == "player_death") {
 blinkLED(0xFF3344);
-String logMsg = "[阵亡] 💀 " + player;
-addMessage(logMsg);
+addMessage("[阵亡] 💀 " + player);
 showTempStatus("💀 啊哦!", player + " 阵亡了", 0xFF3344, 0xFFFFFF);
-}
-else if (event == "custom_msg") {
+} else if (event == "custom_msg") {
 blinkLED(0x44DDFF);
-String logMsg = "[消息] 💬 " + msg;
-addMessage(logMsg);
+addMessage("[消息] 💬 " + msg);
 showTempStatus("💬 来自MC:", msg, 0x44DDFF, 0xFFFFFF);
-}
-else if (event == "environment_data") {
+} else if (event == "environment_data") {
 handleEnvironmentData(body);
 return;
-}
-else {
+} else {
 server.send(200, "application/json", "{\"status\":\"ok\"}");
 return;
 }
@@ -904,7 +862,7 @@ String html = R"rawliteral(
 <!DOCTYPE html><meta charset="utf-8">
 <html>
 <body style="font-family:sans-serif;background:#0A0A1A;color:#CCCCCC;padding:20px;">
-<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.0</h2>
+<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.1</h2>
 <p>✅ 状态：运行中</p>
 <p>📡 IP: )rawliteral" + deviceIP + R"rawliteral(</p>
 <p>🏙️ 城市：)rawliteral" + (cityInitialized ? cityName : "未连接") + R"rawliteral(</p>
@@ -929,6 +887,65 @@ delay(1500);
 ESP.restart();
 }
 
+// ============= 按钮状态机处理 =============
+void handleButtonA() {
+bool pressed = k10.buttonA->isPressed();
+switch (btnAState) {
+case BTN_IDLE:
+if (pressed) {
+btnAState = BTN_PRESSED;
+btnAPressTime = millis();
+}
+break;
+case BTN_PRESSED:
+if (!pressed) {
+// 短按释放不做特殊处理，长按在循环中已处理
+btnAState = BTN_IDLE;
+} else if (millis() - btnAPressTime >= 2000) {
+// 长按 2 秒 -> 重置 WiFi
+btnAState = BTN_PROCESSED;
+showTempStatus("🔄 重置WiFi...", "即将重启", 0xFF3344, 0xFFFFFF);
+prefs.begin("wifi", false);
+prefs.clear();
+prefs.end();
+delay(1000);
+ESP.restart();
+}
+break;
+case BTN_PROCESSED:
+if (!pressed) btnAState = BTN_IDLE;
+break;
+}
+}
+
+void handleButtonB() {
+bool pressed = k10.buttonB->isPressed();
+switch (btnBState) {
+case BTN_IDLE:
+if (pressed) {
+btnBState = BTN_PRESSED;
+btnBPressTime = millis();
+}
+break;
+case BTN_PRESSED:
+if (!pressed) {
+// 短按释放 -> 切换模式（长按超过500ms视为无效，避免误触）
+if (millis() - btnBPressTime < 500) {
+cycleDisplayMode();
+blinkLED(0x00FFAA);
+}
+btnBState = BTN_IDLE;
+} else if (millis() - btnBPressTime >= 500) {
+// 长按，忽略此次按下
+btnBState = BTN_PROCESSED;
+}
+break;
+case BTN_PROCESSED:
+if (!pressed) btnBState = BTN_IDLE;
+break;
+}
+}
+
 // ================= 主程序 =================
 void setup() {
 Serial.begin(115200);
@@ -936,12 +953,13 @@ k10.begin();
 k10.initScreen(2);
 k10.creatCanvas();
 
+// SD 卡初始化
 if (SD.begin()) {
 sdOk = true;
 if (!SD.exists("/log.txt")) {
 File f = SD.open("/log.txt", FILE_WRITE);
 if (f) {
-f.println("=== K10 MC Bridge Log v3.0 ===");
+f.println("=== K10 MC Bridge Log v3.1 ===");
 f.close();
 }
 }
@@ -950,28 +968,8 @@ sdOk = false;
 Serial.println("SD卡初始化失败");
 }
 
-bool resetTriggered = false;
-if (k10.buttonA->isPressed()) {
-delay(50);
-if (k10.buttonA->isPressed()) {
-unsigned long t = millis();
-while (k10.buttonA->isPressed() && (millis() - t < 2000)) {
-delay(10);
-}
-if (k10.buttonA->isPressed()) {
-resetTriggered = true;
-}
-}
-}
-if (resetTriggered) {
-showTempStatus("🔄 重置WiFi...", "释放A键重启", 0xFF3344, 0xFFFFFF);
-prefs.begin("wifi", false);
-prefs.clear();
-prefs.end();
-delay(2000);
-ESP.restart();
-}
-
+// 启动时 A 键长按重置（已在主循环中处理，这里不再重复）
+// 加载 WiFi 配置
 prefs.begin("wifi", true);
 String saved_ssid = prefs.getString("ssid", "");
 String saved_pass = prefs.getString("pass", "");
@@ -984,7 +982,7 @@ WiFi.mode(WIFI_STA);
 WiFi.begin(saved_ssid.c_str(), saved_pass.c_str());
 int retry = 0;
 while (WiFi.status() != WL_CONNECTED && retry < 60) {
-showTempStatus("📶 连接中 " + String(retry+1) + "/60", saved_ssid, 0xFFFF44, 0xFFFFFF);
+showTempStatus("📶 连接中 " + String(retry + 1) + "/60", saved_ssid, 0xFFFF44, 0xFFFFFF);
 delay(500);
 retry++;
 }
@@ -1011,52 +1009,18 @@ server.on("/reset", handleReset);
 }
 server.begin();
 
-Serial.println("[系统] K10 MC Bridge v3.0 启动完成");
-Serial.println("[系统] 数字城市管理中心已激活");
+Serial.println("[系统] K10 MC Bridge v3.1 启动完成");
+Serial.println("[系统] 数字城市管理中心已激活 (优化版)");
 }
 
 void loop() {
 server.handleClient();
 checkRestoreStatus();
 checkAutoReturnToChat();
+checkEnvironmentDisplayTimeout();
+handleButtonA();
+handleButtonB();
+flushLogBuffer();
 
-static unsigned long pressStart = 0;
-static bool resetDone = false;
-
-// A键长按重置WiFi
-if (k10.buttonA->isPressed()) {
-if (pressStart == 0) {
-pressStart = millis();
-} else if (millis() - pressStart > 2000 && !resetDone) {
-resetDone = true;
-showTempStatus("🔄 重置WiFi...", "即将重启", 0xFF3344, 0xFFFFFF);
-prefs.begin("wifi", false);
-prefs.clear();
-prefs.end();
-delay(1000);
-ESP.restart();
-}
-} else {
-pressStart = 0;
-resetDone = false;
-}
-
-// B键切换显示模式（短按）
-static bool lastBState = false;
-bool currentBState = k10.buttonB->isPressed();
-if (currentBState && !lastBState) {
-// B键刚被按下
-unsigned long pressTime = millis();
-while (k10.buttonB->isPressed() && (millis() - pressTime) < 500) {
 delay(10);
-}
-if (!k10.buttonB->isPressed() || (millis() - pressTime) >= 500) {
-// 短按或释放，执行切换
-cycleDisplayMode();
-blinkLED(0x00FFAA);
-}
-}
-lastBState = currentBState;
-
-delay(2);
 }

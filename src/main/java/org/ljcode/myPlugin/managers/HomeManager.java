@@ -127,8 +127,10 @@ public class HomeManager {
         // 获取或创建玩家的家园映射表
         Map<String, Location> homes = playerHomes.getOrDefault(uuid, new HashMap<>());
         
-        // 检查玩家是否有权限设置多个家园
-        int maxHomes = player.hasPermission("essentialsx.home.multiple") ? 10 : 1;
+        // 检查玩家是否有权限设置多个家园（上限由 config.yml homes.* 决定）
+        int maxHomes = player.hasPermission("essentialsx.home.multiple")
+                ? plugin.getConfig().getInt("homes.max-homes-with-permission", 10)
+                : plugin.getConfig().getInt("homes.max-homes", 5);
         
         // 如果玩家尚未拥有此家园名称，但已达到最大家园数量限制，则返回false
         if (homes.size() >= maxHomes && !homes.containsKey(homeName)) {

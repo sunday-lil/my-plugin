@@ -46,10 +46,9 @@ public class AnnouncementCommand implements CommandExecutor {
         plugin.reloadConfig();
         announcementManager.reloadConfig();
 
-        // 重新加载K10数字孪生系统配置
+        // 重新加载K10数字孪生系统配置（含监听器配置引用同步）
         if (plugin.getK10TCPManager() != null) {
-            plugin.getK10TCPManager().setConfig(plugin.getConfig());
-            plugin.getK10TCPManager().reloadConfig();
+            plugin.syncK10Config();
             sender.sendMessage("§a[K10数字孪生] 配置已重新加载 - 新目标: " +
                 plugin.getK10TCPManager().getCurrentHost());
         }

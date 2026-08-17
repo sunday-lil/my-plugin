@@ -1,7 +1,7 @@
 # 🤖 项目交接文档 (AI/开发者 Handoff)
 
 > **目的**：让下一个接手者（人类或 AI）在 5 分钟内掌握项目全貌、现状与坑位。
-> **最后更新**: 2026-08-17 · 对应版本 v1.1.0 · 提交 033c4a6
+> **最后更新**: 2026-08-17 · 对应版本 v1.2.0（插件）/ v3.2（K10固件）
 
 ---
 
@@ -27,15 +27,17 @@
 MyPlugin.java                  主类：装配所有 Manager/Listener，K10响应回调路由(88-91行)
 managers/
   K10TCPManager.java           ★核心：HTTP发送/重试/节流500ms/健康判定/Gson解析K10响应
-  DigitalCityManager.java      城市统计采集与 CITY_* 事件推送（含CityEvent内部类, color格式#RRGGBB）
-  EnvironmentDataScheduler.java 环境数据轮询计算（同步任务！间隔动态调整5-30秒）
+  DigitalCityManager.java      城市统计采集与 CITY_* 事件推送（含CityEvent内部类, color格式#RRGGBB; 红石窗口统计+激增检测）
+  EnvironmentDataScheduler.java v1.2.0聚合报告: 全玩家汇总成一条environment_summary, 默认60s/条(同步任务)
   EnvironmentDataCalculator.java 环境数据算法（温度/湿度/光照/风速/天气/群系）
   EnvironmentDataReceiver.java  K10环境响应处理
+  HouseholdManager.java        v1.2.0住户扫描: 床+半径6格门=一户; ChunkSnapshot+异步批处理(每批8区块), 回主线程回调
   BankManager.java             银行（独立bank.yml，与钱包economy.yml分离）
   EconomyManager.java          钱包/交易（5分钟自动保存，异步内runTask跳回主线程）
   HomeManager/WarpManager/TeleportManager.java  传送三件套
 listeners/
   K10DigitalTwinListener.java  玩家join/quit/death/chat → 传统事件推送
+  RedstoneListener.java        v1.2.0红石通断翻转计数(0↔N)→DigitalCityManager.recordRedstoneActivity()
   MenuListener/ShopListener/PlayerListener...   各GUI与玩家事件
 web/WebServer.java             NanoHTTPD配置台(8080)，/api/*有IP白名单+可选token
 resources/config.yml           全部真实配置键（文档示例均已对齐此文件）
@@ -53,16 +55,18 @@ K10 端入口 `handleMcEvent()` 按字段分发，两套约定并存：
 | 消息类型 | 插件构造处 | K10处理函数 | 关键字段 |
 |---|---|---|---|
 | 传统事件 | K10DigitalTwinListener | handleMcEvent | `event`(player_join/quit/death/custom_msg) + `player`/`message` |
-| 环境数据 | EnvironmentDataScheduler.buildJsonMessage | handleEnvironmentData | `event`="environment_data" + player_name/request_id/temperature/humidity/light/wind_speed/weather/biome |
+| 环境聚合报告 ★v1.2.0 | EnvironmentDataScheduler.collectAndSendSummary | handleEnvironmentSummary | `event`="environment_summary" + request_id/player_count/`players`数组{name,temperature,humidity,...}；K10直接ArduinoJson解析数组(getJsonValue不支持数组) |
+| 环境单玩家(兼容) | （v1.2.0已不再自动发送） | handleEnvironmentData | `event`="environment_data" + player_name/request_id/temperature/humidity/light/wind_speed/weather/biome |
 | 城市初始化 | DigitalCityManager.sendCityInitialization | processCityInitData | `event_type`="CITY_INIT" + city_name/founded_date |
-| 城市仪表盘 | sendCityDashboard(30秒/次,可配) | processCityDashboardData | `event_type`="CITY_DASHBOARD" + 嵌套 basic_stats./population_stats./economy_stats./activity_stats. |
-| 城市事件 | addCityEvent | processCityEventData | `event_type`="CITY_EVENT" + 嵌套`event`{type,source,description,color:"#RRGGBB"} |
+| 城市仪表盘 | sendCityDashboard(30秒/次,可配) | processCityDashboardData | `event_type`="CITY_DASHBOARD" + 嵌套 basic_stats./population_stats.(含households)/economy_stats./activity_stats.(含redstone_changes) |
+| 城市事件 | addCityEvent | processCityEventData | `event_type`="CITY_EVENT" + 嵌套`event`{type,source,description,color:"#RRGGBB"}；新类型: HOUSING_CHANGE/REDSTONE_SURGE |
 
 **注意**：
-- K10 端 `getJsonValue()` 只支持**一层**嵌套（`basic_stats.tps` 可以，三层不行）
-- K10 用 ArduinoJson：数字会被转成 `"5.00"` 字符串再 toInt()/toFloat()，正常工作
-- K10 环境响应含 `request_id`，MyPlugin 88 行据此路由到调度器；普通事件响应 `{"status":"ok"}` 无此字段不会误路由
+- K10 端 `getJsonValue()` 只支持**一层**嵌套（`basic_stats.tps` 可以，三层不行）；数组必须像 handleEnvironmentSummary 那样直接用 ArduinoJson 迭代
+- K10 用 ArduinoJson：数字会被转成 `"5.00"` 字符串再 toInt()/toFloat()，正常工作；聚合报告doc给到8192字节
+- K10 环境响应含 `request_id`，MyPlugin 据此路由到调度器；普通事件响应 `{"status":"ok"}` 无此字段不会误路由
 - 插件端节流按 `event_type`/`event` 字段区分类型，同类型 500ms 内去重
+- K10 v3.2 界面逻辑：默认城市大屏；任何界面30s无操作回大屏；环境报告到达临时显示8s回大屏；事件全屏通知5s后按模式恢复(showTempStatus/checkRestoreStatus配对)
 
 ---
 

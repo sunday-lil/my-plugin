@@ -1,6 +1,12 @@
 /*!
-Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.1
-优化内容：
+Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.2
+v3.2 更新（配合插件 v1.2.0）：
+1. 默认界面改为城市大屏，30秒无操作自动返回大屏
+2. 环境消息改为聚合列表（environment_summary，全玩家汇总，约60秒一条），
+   到达后临时显示约8秒自动返回城市大屏
+3. 城市仪表盘新增住户数（床+门=一户，插件端扫描）与红石活动显示
+4. 新增住户变动/红石激增事件的滚动通知
+v3.1 优化内容：
 1. 使用 ArduinoJson 解析 JSON，支持嵌套字段
 2. 环境数据显示非阻塞，不阻塞主循环
 3. 按钮状态机处理，长按短按区分明确
@@ -59,9 +65,10 @@ enum DisplayMode {
     MODE_CITY_DASHBOARD
 };
 
-DisplayMode currentDisplayMode = MODE_CHAT;
+// v3.2: 默认界面为城市大屏（原来是聊天模式）
+DisplayMode currentDisplayMode = MODE_CITY_DASHBOARD;
 unsigned long lastModeChangeTime = 0;
-const unsigned long AUTO_RETURN_TIMEOUT = 30000; // 30秒无操作返回聊天模式
+const unsigned long AUTO_RETURN_TIMEOUT = 30000; // 30秒无操作返回城市大屏
 
 // ---------- 城市仪表盘数据结构 ----------
 struct CityBasicStats {
@@ -80,6 +87,7 @@ struct CityPopulationStats {
     int totalDeaths;
     int avgSessionTime;
     int peakToday;
+    int households;   // v3.2: 住户结构数（床+门=一户，插件端扫描）
 };
 
 struct CityEconomyStats {
@@ -94,13 +102,14 @@ struct CityActivityStats {
     long blocksBroken;
     long blocksPlaced;
     String activityLevel;
+    long redstoneChanges;  // v3.2: 本周期红石通断翻转次数
 };
 
 // ---------- 城市数据缓存 ----------
 CityBasicStats cityBasic = {0, 0, 0, 20.0, "NORMAL", "NORMAL", 0.0};
-CityPopulationStats cityPopulation = {0, 0, 0, 0, 0};
+CityPopulationStats cityPopulation = {0, 0, 0, 0, 0, 0};
 CityEconomyStats cityEconomy = {0, 0, 0, 0.0};
-CityActivityStats cityActivity = {0, 0, 0, "MINIMAL"};
+CityActivityStats cityActivity = {0, 0, 0, "MINIMAL", 0};
 
 // ---------- 最近事件列表（环形缓冲区） ----------
 #define MAX_CITY_EVENTS 10
@@ -135,6 +144,17 @@ struct EnvironmentDisplayState {
     String biome;
 } envState = {false, 0, 5000, "", "", "", "", "", "", ""};
 
+// ---------- v3.2: 环境聚合列表（多玩家汇总） ----------
+#define MAX_ENV_ROWS 8          // 屏幕最多显示前8名玩家
+struct EnvPlayerRow {
+    String name;
+    float temperature;
+    float humidity;
+};
+EnvPlayerRow envRows[MAX_ENV_ROWS];
+int envRowCount = 0;       // 已存储行数（≤MAX_ENV_ROWS）
+int envPlayerTotal = 0;    // 插件报告的总玩家数（可能大于屏幕显示数）
+
 // ---------- 按钮状态机 ----------
 enum ButtonState { BTN_IDLE, BTN_PRESSED, BTN_PROCESSED };
 ButtonState btnAState = BTN_IDLE;
@@ -145,6 +165,7 @@ unsigned long btnBPressTime = 0;
 // ============= 函数前置声明 =============
 void drawUI(String statusLine1, String statusLine2, uint32_t statusColor1 = 0x00FFAA, uint32_t statusColor2 = 0xCCCCCC);
 void drawEnvironmentUI(String playerName, String temperature, String humidity, String light, String windSpeed, String weather, String biome);
+void drawEnvironmentSummaryUI();  // v3.2: 多玩家环境列表
 void drawCityDashboard();
 String getJsonValue(String data, String key);  // 新版本使用 ArduinoJson
 String escapeHtml(String s);
@@ -159,7 +180,7 @@ void switchToChatMode();
 void switchToEnvironmentMode();
 void switchToCityDashboardMode();
 void cycleDisplayMode();
-void checkAutoReturnToChat();
+void checkAutoReturnToDashboard();  // v3.2: 自动返回城市大屏
 void checkRestoreStatus();
 void checkEnvironmentDisplayTimeout();
 void updateStatus(String line1, String line2, uint32_t color1 = 0xFFFFFF, uint32_t color2 = 0x00FFAA);
@@ -169,11 +190,13 @@ String translateCityStatus(String status);
 String translateActivityLevel(String level);
 uint32_t getActivityLevelColor(String level);
 String formatUptime(float hours);
+String formatCompact(long n);  // v3.2: 大数缩写(1.2k/3.4M)
 void addCityEvent(String type, String source, String description, uint32_t color);
 void processCityInitData(String body);
 void processCityDashboardData(String body);
 void processCityEventData(String eventDataStr);
 void handleEnvironmentData(String body);
+void handleEnvironmentSummary(String body);  // v3.2: 聚合环境报告
 void handleCityEvent(String body);
 void handleMcEvent();
 void handleConfigPage();
@@ -204,6 +227,8 @@ void switchToChatMode() {
 void switchToEnvironmentMode() {
     currentDisplayMode = MODE_ENVIRONMENT;
     lastModeChangeTime = millis();
+    // v3.2: 手动进入环境页时，显示最近一次收到的聚合列表
+    drawEnvironmentSummaryUI();
 }
 
 void switchToCityDashboardMode() {
@@ -213,23 +238,25 @@ void switchToCityDashboardMode() {
 }
 
 void cycleDisplayMode() {
+    // v3.2: 切换顺序 大屏 → 环境 → 聊天 → 大屏
     switch (currentDisplayMode) {
         case MODE_CHAT:
-            switchToEnvironmentMode();
+            switchToCityDashboardMode();
             break;
         case MODE_ENVIRONMENT:
-            switchToCityDashboardMode();
+            switchToChatMode();
             break;
         case MODE_CITY_DASHBOARD:
         default:
-            switchToChatMode();
+            switchToEnvironmentMode();
             break;
     }
 }
 
-void checkAutoReturnToChat() {
-    if (currentDisplayMode != MODE_CHAT && (millis() - lastModeChangeTime > AUTO_RETURN_TIMEOUT)) {
-        switchToChatMode();
+void checkAutoReturnToDashboard() {
+    // v3.2: 任何界面30秒无操作都回城市大屏
+    if (currentDisplayMode != MODE_CITY_DASHBOARD && (millis() - lastModeChangeTime > AUTO_RETURN_TIMEOUT)) {
+        switchToCityDashboardMode();
     }
 }
 
@@ -336,6 +363,60 @@ void drawEnvironmentUI(String playerName, String temperature, String humidity, S
     k10.canvas->updateCanvas();
 }
 
+// ============= v3.2: 多玩家环境聚合列表UI =============
+void drawEnvironmentSummaryUI() {
+    k10.canvas->canvasClear();
+    k10.setScreenBackground(0x0A0A1A);
+
+    // 标题区域
+    k10.canvas->canvasText("🌍 环境总览", 10, 10, 0x00AAFF, k10.canvas->eCNAndENFont16, 48, true);
+    k10.canvas->canvasText(String(envPlayerTotal) + "名玩家在线", 10, 34, 0xFFFFFF, k10.canvas->eCNAndENFont16, 40, true);
+
+    // 模式指示器
+    k10.canvas->canvasText("[环境]", 180, 24, 0x00AAFF, k10.canvas->eCNAndENFont16, 20, true);
+
+    // 分隔线
+    k10.canvas->canvasLine(10, 58, 230, 58, 0x334466);
+
+    if (envRowCount == 0) {
+        // 尚未收到任何聚合报告
+        k10.canvas->canvasText("等待插件环境报告...", 25, 130, 0x556677, k10.canvas->eCNAndENFont16, 35, true);
+        k10.canvas->canvasText("约每60秒汇总一次", 30, 160, 0x334455, k10.canvas->eCNAndENFont16, 30, true);
+    } else {
+        // 玩家列表: 名字 + 温度 + 湿度
+        int y = 68;
+        for (int i = 0; i < envRowCount && i < MAX_ENV_ROWS; i++) {
+            String name = envRows[i].name;
+            if (name.length() > 8) {
+                name = name.substring(0, 8);
+            }
+            String tempStr = String(envRows[i].temperature, 1) + "°";
+            String humStr = String(envRows[i].humidity, 0) + "%";
+
+            uint32_t nameColor = 0xCCCCCC;
+            uint32_t tempColor = 0xFFAA44;
+            uint32_t humColor = 0x44DDFF;
+
+            k10.canvas->canvasText(name, 14, y, nameColor, k10.canvas->eCNAndENFont16, 30, true);
+            k10.canvas->canvasText(tempStr, 130, y, tempColor, k10.canvas->eCNAndENFont16, 26, true);
+            k10.canvas->canvasText(humStr, 185, y, humColor, k10.canvas->eCNAndENFont16, 22, true);
+            y += 24;
+        }
+
+        // 超出屏幕显示数的玩家
+        if (envPlayerTotal > envRowCount) {
+            k10.canvas->canvasText("+" + String(envPlayerTotal - envRowCount) + " 更多", 14, y,
+                                   0x556677, k10.canvas->eCNAndENFont16, 24, true);
+        }
+    }
+
+    // 底部提示
+    k10.canvas->canvasText("按B键切换界面", 70, 268, 0x556677, k10.canvas->eCNAndENFont16, 18, true);
+    k10.canvas->canvasText("◆ 60秒汇总 ◆", 65, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
+
+    k10.canvas->updateCanvas();
+}
+
 // ============= 🏙️ 城市管理中心专用显示UI =============
 void drawCityDashboard() {
     k10.canvas->canvasClear();
@@ -383,8 +464,9 @@ void drawCityDashboard() {
     k10.canvas->canvasText("总入驻: " + String(cityPopulation.totalJoined), 15, 170, 0xCCCCCC, k10.canvas->eCNAndENFont16, 22, true);
     k10.canvas->canvasText("今日峰值: " + String(cityPopulation.peakToday), 120, 170, 0xFFDD44, k10.canvas->eCNAndENFont16, 22, true);
 
+    // v3.2: 住户结构数（床+门=一户，插件端扫描），替代原"均时长"
     k10.canvas->canvasText("总阵亡: " + String(cityPopulation.totalDeaths), 15, 195, 0xFF6666, k10.canvas->eCNAndENFont16, 22, true);
-    k10.canvas->canvasText("均时长: " + String(cityPopulation.avgSessionTime) + "分", 120, 195, 0x66FF66, k10.canvas->eCNAndENFont16, 22, true);
+    k10.canvas->canvasText("🏠 " + String(cityPopulation.households) + "户", 130, 195, 0x66FF66, k10.canvas->eCNAndENFont16, 22, true);
 
     // ========== 第四行：活动统计 ==========
     k10.canvas->canvasText("== 活动统计 ==", 12, 220, 0x6688AA, k10.canvas->eCNAndENFont16, 26, true);
@@ -393,11 +475,11 @@ void drawCityDashboard() {
     uint32_t activityColor = getActivityLevelColor(cityActivity.activityLevel);
     k10.canvas->canvasText("活跃度: " + activityLevelText, 15, 245, activityColor, k10.canvas->eCNAndENFont16, 22, true);
 
-    // 经济数据（真实银行账户数，与插件 economy_stats 联动）
-    k10.canvas->canvasText("🏦 " + String(cityEconomy.activeBankAccounts) + "户", 130, 245, 0x44DDFF, k10.canvas->eCNAndENFont16, 22, true);
+    // v3.2: 红石活动（本周期通断翻转次数，缩写显示），银行账户数移至状态页
+    k10.canvas->canvasText("🔴RS " + formatCompact(cityActivity.redstoneChanges), 140, 245, 0xFF8866, k10.canvas->eCNAndENFont16, 24, true);
 
     // 底部信息
-    k10.canvas->canvasText("◆ 智慧城市 v1.0 ◆", 55, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
+    k10.canvas->canvasText("◆ 智慧城市 v1.2 ◆", 55, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
     k10.canvas->canvasText("按B键切换界面", 70, 268, 0x556677, k10.canvas->eCNAndENFont16, 18, true);
 
     k10.canvas->updateCanvas();
@@ -460,6 +542,16 @@ String formatUptime(float hours) {
     }
 }
 
+// v3.2: 大数缩写显示（1234 → "1.2k"，5600000 → "5.6M"）
+String formatCompact(long n) {
+    if (n >= 1000000L) {
+        return String(n / 1000000.0, 1) + "M";
+    } else if (n >= 1000L) {
+        return String(n / 1000.0, 1) + "k";
+    }
+    return String(n);
+}
+
 // ============= 城市事件管理（环形缓冲区） =============
 void addCityEvent(String type, String source, String description, uint32_t color) {
     cityEvents[cityEventHead] = {type, source, description, color, millis()};
@@ -507,22 +599,26 @@ void processCityDashboardData(String body) {
     String totalDeathsStr = getJsonValue(body, "population_stats.total_deaths");
     String avgSessionStr = getJsonValue(body, "population_stats.avg_session_time");
     String peakTodayStr = getJsonValue(body, "population_stats.peak_today");
+    String householdsStr = getJsonValue(body, "population_stats.households");
 
     if (totalJoinedStr != "") cityPopulation.totalJoined = totalJoinedStr.toInt();
     if (totalDeathsStr != "") cityPopulation.totalDeaths = totalDeathsStr.toInt();
     if (avgSessionStr != "") cityPopulation.avgSessionTime = avgSessionStr.toInt();
     if (peakTodayStr != "") cityPopulation.peakToday = peakTodayStr.toInt();
+    if (householdsStr != "") cityPopulation.households = householdsStr.toInt();
     cityPopulation.currentOnline = cityBasic.onlinePlayers;
 
     String messagesStr = getJsonValue(body, "activity_stats.messages_sent");
     String blocksBrokenStr = getJsonValue(body, "activity_stats.blocks_broken");
     String blocksPlacedStr = getJsonValue(body, "activity_stats.blocks_placed");
     String activityLevelStr = getJsonValue(body, "activity_stats.activity_level");
+    String redstoneStr = getJsonValue(body, "activity_stats.redstone_changes");
 
     if (messagesStr != "") cityActivity.messagesSent = messagesStr.toInt();
     if (blocksBrokenStr != "") cityActivity.blocksBroken = blocksBrokenStr.toInt();
     if (blocksPlacedStr != "") cityActivity.blocksPlaced = blocksPlacedStr.toInt();
     if (activityLevelStr != "") cityActivity.activityLevel = activityLevelStr;
+    if (redstoneStr != "") cityActivity.redstoneChanges = redstoneStr.toInt();
 
     // 经济统计（与插件 economy_stats 联动：真实银行账户与交易数据）
     String totalTxStr = getJsonValue(body, "economy_stats.total_transactions");
@@ -573,6 +669,14 @@ void processCityEventData(String eventDataStr) {
     } else if (eventType == "MILESTONE") {
         showTempStatus("🎉 里程碑", eventDesc, 0xFFDD44, 0xFFFFFF);
         blinkLED(0xFFDD44);
+    } else if (eventType == "HOUSING_CHANGE") {
+        // v3.2: 住户变动（插件端结构扫描结果变化）
+        showTempStatus("🏠 住户变动", eventDesc, 0x66FF66, 0xFFFFFF);
+        blinkLED(0x66FF66);
+    } else if (eventType == "REDSTONE_SURGE") {
+        // v3.2: 红石活动激增/恢复
+        showTempStatus("🔴 红石活动", eventDesc, 0xFF6644, 0xFFFFFF);
+        blinkLED(0xFF6644);
     }
 }
 
@@ -617,16 +721,20 @@ void showTempStatus(String line1, String line2, uint32_t color1, uint32_t color2
     tempColor2 = color2;
     isTempStatus = true;
     statusChangeTime = millis();
-    if (currentDisplayMode == MODE_CHAT) {
-        drawUI(tempStatusLine1, tempStatusLine2, tempColor1, tempColor2);
-    }
+    // v3.2: 任何界面下临时通知都全屏弹出（约5秒），超时后按当前模式恢复
+    drawUI(tempStatusLine1, tempStatusLine2, tempColor1, tempColor2);
 }
 
 void checkRestoreStatus() {
     if (isTempStatus && (millis() - statusChangeTime >= STATUS_DISPLAY_DURATION)) {
         isTempStatus = false;
+        // v3.2: 按当前模式恢复对应界面
         if (currentDisplayMode == MODE_CHAT) {
             drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
+        } else if (currentDisplayMode == MODE_CITY_DASHBOARD) {
+            drawCityDashboard();
+        } else if (currentDisplayMode == MODE_ENVIRONMENT) {
+            drawEnvironmentSummaryUI();
         }
     }
 }
@@ -639,8 +747,10 @@ void updateStatus(String line1, String line2, uint32_t color1, uint32_t color2) 
 void checkEnvironmentDisplayTimeout() {
     if (envState.active && (millis() - envState.startTime >= envState.duration)) {
         envState.active = false;
-        // 恢复当前模式界面
-        if (currentDisplayMode == MODE_CHAT) {
+        // v3.2: 环境显示超时后返回城市大屏（默认主界面）
+        if (currentDisplayMode == MODE_ENVIRONMENT) {
+            switchToCityDashboardMode();
+        } else if (currentDisplayMode == MODE_CHAT) {
             drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
         } else if (currentDisplayMode == MODE_CITY_DASHBOARD) {
             drawCityDashboard();
@@ -765,6 +875,63 @@ void handleSaveWifi() {
 }
 
 // ============= Minecraft 事件处理 =============
+// v3.2: 环境聚合报告（全玩家汇总列表，插件v1.2.0默认每60秒一条）
+void handleEnvironmentSummary(String body) {
+    String requestId = getJsonValue(body, "request_id");
+    String playerCountStr = getJsonValue(body, "player_count");
+
+    // 使用 ArduinoJson 直接解析 players 数组（getJsonValue不支持数组）
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, body);
+    if (error) {
+        server.send(200, "application/json", "{\"response_type\":\"acknowledgment\",\"status\":\"error\",\"request_id\":\"" + requestId + "\",\"message\":\"JSON解析失败\"}");
+        return;
+    }
+
+    envRowCount = 0;
+    envPlayerTotal = playerCountStr != "" ? playerCountStr.toInt() : 0;
+
+    JsonArray players = doc["players"];
+    if (!players.isNull()) {
+        for (JsonObject playerObj : players) {
+            if (envRowCount >= MAX_ENV_ROWS) break;
+            envRows[envRowCount].name = playerObj["name"].as<String>();
+            envRows[envRowCount].temperature = playerObj["temperature"].as<float>();
+            envRows[envRowCount].humidity = playerObj["humidity"].as<float>();
+            envRowCount++;
+        }
+        if (envPlayerTotal == 0) envPlayerTotal = players.size();
+    }
+
+    // LED 提示（环境报告到达）
+    k10.rgb->write(-1, 0x00AAFF);
+    delay(150);
+    k10.rgb->write(-1, 0x000000);
+
+    addMessage("[环境] 🌍 汇总: " + String(envPlayerTotal) + "名玩家");
+
+    // 临时切换到环境列表页（约8秒后自动返回城市大屏）
+    currentDisplayMode = MODE_ENVIRONMENT;
+    drawEnvironmentSummaryUI();
+    envState.active = true;
+    envState.startTime = millis();
+    envState.duration = 8000;
+
+    // 响应确认（带request_id，插件据此路由到环境调度器）
+    String response = "{\"response_type\":\"acknowledgment\",\"status\":\"success\",\"request_id\":\"" + requestId + "\",\"message\":\"环境汇总已接收\",\"data\":{\"player_count\":" + String(envPlayerTotal) + ",\"displayed_rows\":" + String(envRowCount) + "}}";
+    server.send(200, "application/json", response);
+
+    // 记录到 SD 卡（通过缓冲）
+    if (sdOk) {
+        logBuffer += "[" + String(millis()) + "] 环境汇总 " + String(envPlayerTotal) + "名玩家\n";
+        for (int i = 0; i < envRowCount; i++) {
+            logBuffer += "  " + envRows[i].name + " T:" + String(envRows[i].temperature, 1) + "°C H:" + String(envRows[i].humidity, 0) + "%\n";
+        }
+        if (logBuffer.length() > 1024) flushLogBuffer();
+    }
+}
+
+// 兼容旧插件的单玩家环境数据（v1.2.0插件已改为聚合报告，此函数保留兼容）
 void handleEnvironmentData(String body) {
     String playerName = getJsonValue(body, "player_name");
     String requestId = getJsonValue(body, "request_id");
@@ -863,6 +1030,10 @@ void handleMcEvent() {
     } else if (event == "environment_data") {
         handleEnvironmentData(body);
         return;
+    } else if (event == "environment_summary") {
+        // v3.2: 多玩家环境聚合报告
+        handleEnvironmentSummary(body);
+        return;
     } else {
         server.send(200, "application/json", "{\"status\":\"ok\"}");
         return;
@@ -876,7 +1047,7 @@ void handleStatusPage() {
 <!DOCTYPE html><meta charset="utf-8">
 <html>
 <body style="font-family:sans-serif;background:#0A0A1A;color:#CCCCCC;padding:20px;">
-<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.1</h2>
+<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.2</h2>
 <p>✅ 状态：运行中</p>
 <p>📡 IP: )rawliteral" + deviceIP + R"rawliteral(</p>
 <p>🏙️ 城市：)rawliteral" + (cityInitialized ? cityName : "未连接") + R"rawliteral(</p>
@@ -886,6 +1057,8 @@ void handleStatusPage() {
 <p>👥 在线: )rawliteral" + String(cityBasic.onlinePlayers) + "/" + String(cityBasic.maxPlayers) + R"rawliteral(</p>
 <p>⚡ TPS: )rawliteral" + String(cityBasic.tps, 1) + R"rawliteral(</p>
 <p>📈 状态: )rawliteral" + translateCityStatus(cityBasic.cityStatus) + R"rawliteral(</p>
+<p>🏠 住户: )rawliteral" + String(cityPopulation.households) + R"rawliteral(户（床+门结构）</p>
+<p>🔴 红石活动: )rawliteral" + String(cityActivity.redstoneChanges) + R"rawliteral(次/周期</p>
 <p>🏦 银行账户: )rawliteral" + String(cityEconomy.activeBankAccounts) + R"rawliteral( | 总交易: )rawliteral" + String(cityEconomy.totalTransactions) + R"rawliteral(</p>
 <p><a href="/reset" style="color:#FF6644;">🔄 清除WiFi并重启</a></p>
 </body></html>)rawliteral";
@@ -974,7 +1147,7 @@ void setup() {
         if (!SD.exists("/log.txt")) {
             File f = SD.open("/log.txt", FILE_WRITE);
             if (f) {
-                f.println("=== K10 MC Bridge Log v3.1 ===");
+                f.println("=== K10 MC Bridge Log v3.2 ===");
                 f.close();
             }
         }
@@ -1012,6 +1185,8 @@ void setup() {
         WiFi.mode(WIFI_AP);
         WiFi.softAP("K10-MC-Setup");
         setDefaultStatus("📶 配网模式", "连接热点 192.168.4.1", 0xFFAA44, 0xCCCCCC);
+        // v3.2: 默认模式为城市大屏，配网模式需强制绘制配网提示界面
+        drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
         server.on("/", handleConfigPage);
         server.on("/save", HTTP_POST, handleSaveWifi);
     } else {
@@ -1021,17 +1196,20 @@ void setup() {
         server.on("/", handleStatusPage);
         server.on("/mc_event", HTTP_POST, handleMcEvent);
         server.on("/reset", handleReset);
+
+        // v3.2: 默认界面改为城市大屏（等待第一条CITY_DASHBOARD数据填充）
+        switchToCityDashboardMode();
     }
     server.begin();
 
-    Serial.println("[系统] K10 MC Bridge v3.1 启动完成");
-    Serial.println("[系统] 数字城市管理中心已激活 (优化版)");
+    Serial.println("[系统] K10 MC Bridge v3.2 启动完成");
+    Serial.println("[系统] 数字城市管理中心已激活 (默认城市大屏模式)");
 }
 
 void loop() {
     server.handleClient();
     checkRestoreStatus();
-    checkAutoReturnToChat();
+    checkAutoReturnToDashboard();
     checkEnvironmentDisplayTimeout();
     handleButtonA();
     handleButtonB();

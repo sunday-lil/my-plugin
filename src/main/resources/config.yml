@@ -18,7 +18,7 @@ k10:
   # 是否启用聊天事件监听
   chat-events-enabled: true
 
-# 环境数据系统设置
+# 环境数据系统设置（v1.2.0 聚合报告模式）
 environment:
   # 是否启用环境数据系统
   enabled: true
@@ -26,17 +26,16 @@ environment:
   scan-radius: 10
   # 高度范围（格）
   height-range: 5
-  # ★ 调整：基础计算间隔（ticks，1秒=20ticks）原100→200（10秒）
-  base-interval: 200
-  # ★ 调整：最小计算间隔（ticks）原50→100（5秒），确保有足够计算时间
-  min-interval: 100
-  # ★ 调整：最大计算间隔（ticks）原500→600（30秒），极端情况兜底
-  max-interval: 600
+  # ★ v1.2.0：聚合报告周期（ticks，1200=60秒）。所有在线玩家汇总为一条消息发送，
+  #   K10临时显示约8秒后自动返回城市大屏，避免环境页刷屏（下限200=10秒）
+  report-interval: 1200
+  # ★ v1.2.0：单条报告最多包含的玩家数（超出部分截断，K10屏幕最多显示前8名+剩余计数）
+  max-players-in-report: 20
   # 响应超时时间（毫秒）
   response-timeout: 5000
   # 最大重试次数
   max-retries: 3
-  # ★ 新增：是否启用调试模式（建议开启以便监控数据质量）
+  # 是否启用调试模式（建议开启以便监控数据质量）
   debug-mode: true
 
 # 数字城市管理系统设置
@@ -57,6 +56,20 @@ digital-city:
   block-tracking-enabled: true
   # 是否追踪聊天消息
   chat-tracking-enabled: true
+  # ★ v1.2.0：是否统计红石活动（通断翻转计数，推送K10仪表盘）
+  redstone-tracking-enabled: true
+  # ★ v1.2.0：红石激增事件阈值（单个仪表盘周期30秒内通断次数达到该值推送K10事件，0=关闭）
+  redstone-surge-threshold: 1000
+  # ★ v1.2.0：住户结构扫描（判定规则：一张床+半径door-bed-radius内至少一扇门=一户）
+  households:
+    # 是否启用住户扫描
+    enabled: true
+    # 扫描周期（ticks，6000=5分钟）
+    scan-interval: 6000
+    # 每个在线玩家周围的扫描半径（格，默认64格≈4区块半径）
+    scan-radius: 64
+    # 床与门的最大判定距离（格）
+    door-bed-radius: 6
 
 # 经济系统设置
 economy:

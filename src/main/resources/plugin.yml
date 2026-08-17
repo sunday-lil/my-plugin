@@ -1,5 +1,5 @@
 name: EssentialsX-Clone
-version: '1.0.0'
+version: '1.2.0'
 main: org.ljcode.myPlugin.MyPlugin
 api-version: '1.21'
 description: 一个功能丰富的EssentialsX克隆插件，包含基本的服务器命令

@@ -43,6 +43,7 @@ public final class MyPlugin extends JavaPlugin {
     private EnvironmentDataScheduler environmentDataScheduler; // 环境数据调度器
     private DigitalCityManager digitalCityManager;            // 数字城市管理器
     private DigitalCityListener digitalCityListener;          // 数字城市事件监听器
+    private HouseholdManager householdManager;                // 住户结构扫描管理器
 
     /**
      * 插件启用时调用的方法
@@ -130,6 +131,19 @@ public final class MyPlugin extends JavaPlugin {
             // ★ 关键：注册事件监听器（必须在创建实例之后，统计才能真正采集数据）
             getServer().getPluginManager().registerEvents(digitalCityListener, this);
 
+            // 红石活动统计监听器（通断翻转计数，推送K10仪表盘）
+            if (getConfig().getBoolean("digital-city.redstone-tracking-enabled", true)) {
+                getServer().getPluginManager().registerEvents(
+                        new org.ljcode.myPlugin.listeners.RedstoneListener(), this);
+                getLogger().info("[数字城市] 红石活动统计已启用");
+            }
+
+            // 住户结构扫描（床+门=一户）
+            if (getConfig().getBoolean("digital-city.households.enabled", true)) {
+                householdManager = new HouseholdManager(this);
+                householdManager.start();
+            }
+
             // ★ 关键：启动城市管理系统（开始发送数据）
             digitalCityManager.startCityManagement();
 
@@ -209,6 +223,12 @@ public final class MyPlugin extends JavaPlugin {
         if (digitalCityManager != null) {
             digitalCityManager.stopCityManagement();
             getLogger().info("🏙️ 数字城市管理系统已关闭");
+        }
+
+        // 关闭住户结构扫描
+        if (householdManager != null) {
+            householdManager.stop();
+            getLogger().info("[住户扫描] 已关闭");
         }
 
         // 关闭行空板K10数字孪生系统
@@ -421,6 +441,10 @@ public final class MyPlugin extends JavaPlugin {
 
     public K10DigitalTwinListener getK10DigitalTwinListener() {
         return k10DigitalTwinListener;
+    }
+
+    public HouseholdManager getHouseholdManager() {
+        return householdManager;
     }
 
     /**

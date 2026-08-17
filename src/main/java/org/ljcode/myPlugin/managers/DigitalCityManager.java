@@ -23,6 +23,16 @@ public class DigitalCityManager {
     private final AtomicInteger totalBlocksPlaced = new AtomicInteger(0);
     private final AtomicLong totalEconomyTransactions = new AtomicLong(0);
     private final AtomicLong totalEconomyVolume = new AtomicLong(0);
+    private final AtomicLong totalRedstoneChanges = new AtomicLong(0);
+
+    // 红石活动（窗口统计 + 激增事件）
+    private long lastReportedRedstoneTotal = 0;
+    private boolean redstoneSurgeActive = false;
+    private long lastRedstoneSurgeEventTime = 0;
+    private static final long REDSTONE_SURGE_EVENT_COOLDOWN_MS = 5 * 60 * 1000; // 事件冷却5分钟
+
+    // 住户统计（由HouseholdManager扫描更新）
+    private volatile int households = 0;
 
     private final Map<String, PlayerActivityData> playerActivityMap = new ConcurrentHashMap<>();
     private final List<CityEvent> recentEvents = Collections.synchronizedList(new ArrayList<>());
@@ -149,6 +159,7 @@ public class DigitalCityManager {
         populationStats.put("total_deaths", totalDeaths.get());
         populationStats.put("avg_session_time", calculateAverageSessionTime());
         populationStats.put("peak_today", peakPlayersToday);
+        populationStats.put("households", households); // 住户结构数（床+门=一户，HouseholdManager扫描）
         dashboardData.put("population_stats", populationStats);
 
         Map<String, Object> economyStats = new HashMap<>();
@@ -166,6 +177,14 @@ public class DigitalCityManager {
         activityStats.put("blocks_broken", totalBlocksBroken.get());
         activityStats.put("blocks_placed", totalBlocksPlaced.get());
         activityStats.put("activity_level", calculateActivityLevel());
+
+        // 红石活动：本窗口（距上次仪表盘）通断翻转次数 + 累计值，并检测激增
+        long redstoneTotal = totalRedstoneChanges.get();
+        long redstoneWindow = redstoneTotal - lastReportedRedstoneTotal;
+        lastReportedRedstoneTotal = redstoneTotal;
+        activityStats.put("redstone_changes", redstoneWindow);
+        activityStats.put("redstone_total", redstoneTotal);
+        checkRedstoneSurge(redstoneWindow);
         dashboardData.put("activity_stats", activityStats);
 
         dashboardData.put("recent_events", getRecentEvents(5));
@@ -263,6 +282,38 @@ public class DigitalCityManager {
     public void recordEconomyTransaction(double amount) {
         totalEconomyTransactions.incrementAndGet();
         totalEconomyVolume.addAndGet((long)(amount * 100));
+    }
+
+    /** 红石通断翻转计数（RedstoneListener调用，主线程） */
+    public void recordRedstoneActivity() {
+        totalRedstoneChanges.incrementAndGet();
+    }
+
+    /** 住户数变动（HouseholdManager扫描完成后回调，主线程） */
+    public void recordHouseholdChange(int oldCount, int newCount) {
+        households = newCount;
+        if (newCount > oldCount) {
+            addCityEvent("HOUSING_CHANGE", "数字城市", "新住户入住: " + oldCount + " → " + newCount + "户", 0xFFDD44);
+        } else if (newCount < oldCount) {
+            addCityEvent("HOUSING_CHANGE", "数字城市", "住户搬离: " + oldCount + " → " + newCount + "户", 0xFFAA44);
+        }
+    }
+
+    private void checkRedstoneSurge(long windowChanges) {
+        long threshold = plugin.getConfig().getLong("digital-city.redstone-surge-threshold", 1000L);
+        long now = System.currentTimeMillis();
+
+        if (windowChanges >= threshold) {
+            redstoneSurgeActive = true;
+            // 激增期间最多每5分钟推送一次事件，避免刷屏
+            if (now - lastRedstoneSurgeEventTime > REDSTONE_SURGE_EVENT_COOLDOWN_MS) {
+                lastRedstoneSurgeEventTime = now;
+                addCityEvent("REDSTONE_SURGE", "红石电路", "红石活动激增: " + windowChanges + "次/30秒", 0xFF6644);
+            }
+        } else if (redstoneSurgeActive && windowChanges < threshold / 2) {
+            redstoneSurgeActive = false;
+            addCityEvent("REDSTONE_SURGE", "红石电路", "红石活动恢复平稳", 0x66FF66);
+        }
     }
 
     public void recordSystemAnnouncement(String announcement) {

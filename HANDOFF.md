@@ -63,7 +63,7 @@ K10 端入口 `handleMcEvent()` 按字段分发，两套约定并存：
 
 **注意**：
 - K10 端 `getJsonValue()` 只支持**一层**嵌套（`basic_stats.tps` 可以，三层不行）；数组必须像 handleEnvironmentSummary 那样直接用 ArduinoJson 迭代
-- K10 用 ArduinoJson：数字会被转成 `"5.00"` 字符串再 toInt()/toFloat()，正常工作；聚合报告doc给到12288字节(20玩家全字段)
+- K10 用 ArduinoJson：数字会被转成 `"5.00"` 字符串再 toInt()/toFloat()，正常工作；聚合报告doc给到16384字节(20玩家全字段)；★教训：DynamicJsonDocument容量必须≥消息体(聚合报告10+玩家即超2KB，旧的2048会NoMemory→event解析为空→回裸ok→插件报"未知响应类型")；getJsonValue默认2048仅适用于小消息，大消息必须单次大doc解析
 - K10 环境响应含 `request_id`，MyPlugin 据此路由到调度器；普通事件响应 `{"status":"ok"}` 无此字段不会误路由
 - 插件端节流按 `event_type`/`event` 字段区分类型，同类型 500ms 内去重
 - K10 v3.3 界面逻辑：三页结构（城市大屏默认/环境表格/玩家详情）；WiFi就绪(networkReady)前只显示配网/连接页；表格页 A/B移动选中行、A+B确认(玩家行→详情/返回行→大屏)、末尾固定返回行；30s无操作回大屏；事件全屏通知约4秒(showTempStatus/checkRestoreStatus配对)；环境报告只刷数据不切页；按键无长按功能，重置WiFi仅网页端/reset

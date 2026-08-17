@@ -1,5 +1,11 @@
 /*!
-Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3
+Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.1
+v3.3.1 修复（环境聚合报告接收失败）：
+1. handleMcEvent/handleEnvironmentSummary 改为单次16384字节大容量解析
+   （旧 getJsonValue 内部 2048 字节 doc 在 10+ 玩家时 NoMemory，
+   event 解析为空 → K10 回了裸 {"status":"ok"} → 插件报"未知响应类型"）
+2. getJsonValue/extractJsonObject 容量参数化（默认2048，大消息可传更大）
+3. JSON 解析失败改为回 200 + response_type=error（避免触发插件 HTTP 非200 重试）
 v3.3 更新（配合插件 v1.2.0）：
 1. 界面精简为三页：城市大屏(默认) / 环境表格(融合页) / 玩家环境详情
    - 删除聊天模式与单玩家环境页（多余界面）
@@ -746,8 +752,10 @@ String escapeAttr(String s) {
 }
 
 // ============= JSON 解析（使用 ArduinoJson） =============
-String getJsonValue(String data, String key) {
-    DynamicJsonDocument doc(2048);
+// v3.3.1: 容量参数化 —— 聚合报告等大消息必须传大容量。
+// 教训: 默认2048字节在10+玩家时NoMemory → event解析为空 → 插件报"未知响应类型"
+String getJsonValue(String data, String key, size_t capacity = 2048) {
+    DynamicJsonDocument doc(capacity);
     DeserializationError error = deserializeJson(doc, data);
     if (error) {
         return "";
@@ -846,20 +854,25 @@ void handleSaveWifi() {
 
 // ============= 环境聚合报告（全玩家汇总列表，插件v1.2.0默认每60秒一条） =============
 // v3.3: 只更新表格数据+LED，不强制切换界面；正在浏览表格页时原地刷新
+// v3.3.1: 单次16384字节解析（20玩家全字段约3.5KB，旧12284在极限情况仍有风险）
 void handleEnvironmentSummary(String body) {
-    String requestId = getJsonValue(body, "request_id");
-    String playerCountStr = getJsonValue(body, "player_count");
-
-    // 使用 ArduinoJson 直接解析 players 数组（getJsonValue不支持数组）
-    DynamicJsonDocument doc(12288);
+    // v3.3.1: 一次大容量解析，request_id/player_count/players 全部从同一doc取
+    // （旧代码先用getJsonValue(2048)取request_id，大body直接NoMemory返回空）
+    DynamicJsonDocument doc(16384);
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
-        server.send(200, "application/json", "{\"response_type\":\"acknowledgment\",\"status\":\"error\",\"request_id\":\"" + requestId + "\",\"message\":\"JSON解析失败\"}");
+        appendLog("[环境] JSON解析失败: " + String(error.c_str()) + " 长度:" + String(body.length()));
+        server.send(200, "application/json",
+                    "{\"response_type\":\"error\",\"status\":\"error\",\"error_code\":\"JSON_PARSE_FAILED\","
+                    "\"error_message\":\"" + String(error.c_str()) + "\",\"request_id\":\"\"}");
         return;
     }
 
+    String requestId = doc["request_id"].isNull() ? "" : doc["request_id"].as<String>();
+    int reportedTotal = doc["player_count"].isNull() ? 0 : doc["player_count"].as<int>();
+
     envRowCount = 0;
-    envPlayerTotal = playerCountStr != "" ? playerCountStr.toInt() : 0;
+    envPlayerTotal = reportedTotal;
 
     JsonArray players = doc["players"];
     if (!players.isNull()) {
@@ -933,12 +946,28 @@ void handleMcEvent() {
     }
 
     String body = server.arg("plain");
-    String event = getJsonValue(body, "event");
-    String player = getJsonValue(body, "player");
-    String msg = getJsonValue(body, "message");
+
+    // v3.3.1: 单次16384字节解析提取全部分发字段。
+    // 旧实现每个getJsonValue各自分配2048字节doc，聚合报告(10+玩家即超2KB)
+    // 解析NoMemory返回空 → event匹配失败 → 回了裸{"status":"ok"} →
+    // 插件端找不到request_id/response_type，报"未知响应类型"
+    DynamicJsonDocument doc(16384);
+    DeserializationError error = deserializeJson(doc, body);
+    if (error) {
+        appendLog("[事件] JSON解析失败: " + String(error.c_str()) + " 长度:" + String(body.length()));
+        // 回200+error JSON: 走插件processResponse报错日志, 避免触发其HTTP非200重试
+        server.send(200, "application/json",
+                    "{\"response_type\":\"error\",\"status\":\"error\",\"error_code\":\"JSON_PARSE_FAILED\","
+                    "\"error_message\":\"" + String(error.c_str()) + "\"}");
+        return;
+    }
+
+    String event = doc["event"].isNull() ? "" : doc["event"].as<String>();
+    String eventType = doc["event_type"].isNull() ? "" : doc["event_type"].as<String>();
+    String player = doc["player"].isNull() ? "" : doc["player"].as<String>();
+    String msg = doc["message"].isNull() ? "" : doc["message"].as<String>();
 
     // 检查是否是城市数据事件
-    String eventType = getJsonValue(body, "event_type");
     if (eventType.startsWith("CITY_") || eventType == "DETAILED_STATISTICS") {
         handleCityEvent(body);
         return;

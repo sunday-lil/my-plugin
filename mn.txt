@@ -1,0 +1,1041 @@
+/*!
+Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.1
+优化内容：
+1. 使用 ArduinoJson 解析 JSON，支持嵌套字段
+2. 环境数据显示非阻塞，不阻塞主循环
+3. 按钮状态机处理，长按短按区分明确
+4. 日志缓冲批量写入 SD 卡
+5. 城市事件环形缓冲区
+6. 增强代码健壮性
+*/
+#include "unihiker_k10.h"
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Preferences.h>
+#include <SD.h>
+#include <ArduinoJsonK10.h>      // 请安装 ArduinoJson 库 v6
+
+// ================= 全局对象 =================
+UNIHIKER_K10 k10;
+WebServer server(80);
+Preferences prefs;
+
+bool needApConfig = false;
+String deviceIP = "";
+String cachedSsidList = "";
+bool scanDone = false;
+
+// ---------- 聊天消息系统 ----------
+#define MAX_MSG 8
+String msgList[MAX_MSG];
+int msgCount = 0;
+int msgHead = 0;
+
+String logBuffer = "";
+bool sdOk = false;
+unsigned long lastLogFlush = 0;
+const unsigned long LOG_FLUSH_INTERVAL = 5000;
+
+// ---------- 状态栏自动恢复 ----------
+String defaultStatusLine1 = "";
+String defaultStatusLine2 = "";
+uint32_t defaultColor1 = 0x00FFAA;
+uint32_t defaultColor2 = 0xCCCCCC;
+
+String tempStatusLine1 = "";
+String tempStatusLine2 = "";
+uint32_t tempColor1 = 0xFFFFFF;
+uint32_t tempColor2 = 0x00FFAA;
+unsigned long statusChangeTime = 0;
+bool isTempStatus = false;
+const unsigned long STATUS_DISPLAY_DURATION = 5000;
+
+// ==================== 数字城市管理系统 ====================
+
+// ---------- 界面模式 ----------
+enum DisplayMode {
+    MODE_CHAT = 0,
+    MODE_ENVIRONMENT,
+    MODE_CITY_DASHBOARD
+};
+
+DisplayMode currentDisplayMode = MODE_CHAT;
+unsigned long lastModeChangeTime = 0;
+const unsigned long AUTO_RETURN_TIMEOUT = 30000; // 30秒无操作返回聊天模式
+
+// ---------- 城市仪表盘数据结构 ----------
+struct CityBasicStats {
+    int onlinePlayers;
+    int maxPlayers;
+    int playerLoad;
+    float tps;
+    String serverStatus;
+    String cityStatus;
+    float uptimeHours;
+};
+
+struct CityPopulationStats {
+    int totalJoined;
+    int currentOnline;
+    int totalDeaths;
+    int avgSessionTime;
+    int peakToday;
+};
+
+struct CityEconomyStats {
+    long totalTransactions;
+    long totalVolume;
+    int activeBankAccounts;
+    double serverWealth;
+};
+
+struct CityActivityStats {
+    long messagesSent;
+    long blocksBroken;
+    long blocksPlaced;
+    String activityLevel;
+};
+
+// ---------- 城市数据缓存 ----------
+CityBasicStats cityBasic = {0, 0, 0, 20.0, "NORMAL", "NORMAL", 0.0};
+CityPopulationStats cityPopulation = {0, 0, 0, 0, 0};
+CityEconomyStats cityEconomy = {0, 0, 0, 0.0};
+CityActivityStats cityActivity = {0, 0, 0, "MINIMAL"};
+
+// ---------- 最近事件列表（环形缓冲区） ----------
+#define MAX_CITY_EVENTS 10
+struct CityEventItem {
+    String type;
+    String source;
+    String description;
+    uint32_t color;
+    unsigned long timestamp;
+};
+
+CityEventItem cityEvents[MAX_CITY_EVENTS];
+int cityEventHead = 0;
+int cityEventCount = 0;
+
+// ---------- 城市初始化标志 ----------
+bool cityInitialized = false;
+String cityName = "Minecraft智慧城市";
+unsigned long cityFoundedTime = 0;
+
+// ---------- 环境数据显示状态（非阻塞） ----------
+struct EnvironmentDisplayState {
+    bool active;
+    unsigned long startTime;
+    unsigned long duration;
+    String playerName;
+    String temperature;
+    String humidity;
+    String light;
+    String windSpeed;
+    String weather;
+    String biome;
+} envState = {false, 0, 5000, "", "", "", "", "", "", ""};
+
+// ---------- 按钮状态机 ----------
+enum ButtonState { BTN_IDLE, BTN_PRESSED, BTN_PROCESSED };
+ButtonState btnAState = BTN_IDLE;
+ButtonState btnBState = BTN_IDLE;
+unsigned long btnAPressTime = 0;
+unsigned long btnBPressTime = 0;
+
+// ============= 函数前置声明 =============
+void drawUI(String statusLine1, String statusLine2, uint32_t statusColor1 = 0x00FFAA, uint32_t statusColor2 = 0xCCCCCC);
+void drawEnvironmentUI(String playerName, String temperature, String humidity, String light, String windSpeed, String weather, String biome);
+void drawCityDashboard();
+String getJsonValue(String data, String key);  // 新版本使用 ArduinoJson
+String escapeHtml(String s);
+String escapeAttr(String s);
+String extractJsonObject(String data, String key);
+void addMessage(String msg);
+void flushLogBuffer();
+void showTempStatus(String line1, String line2, uint32_t color1, uint32_t color2);
+void setDefaultStatus(String line1, String line2, uint32_t color1 = 0x00FFAA, uint32_t color2 = 0xCCCCCC);
+void blinkLED(uint32_t color);
+void switchToChatMode();
+void switchToEnvironmentMode();
+void switchToCityDashboardMode();
+void cycleDisplayMode();
+void checkAutoReturnToChat();
+void checkRestoreStatus();
+void checkEnvironmentDisplayTimeout();
+void updateStatus(String line1, String line2, uint32_t color1 = 0xFFFFFF, uint32_t color2 = 0x00FFAA);
+uint32_t getTPSColor(float tps);
+uint32_t getCityStatusColor(String status);
+String translateCityStatus(String status);
+String translateActivityLevel(String level);
+uint32_t getActivityLevelColor(String level);
+String formatUptime(float hours);
+void addCityEvent(String type, String source, String description, uint32_t color);
+void processCityInitData(String body);
+void processCityDashboardData(String body);
+void processCityEventData(String eventDataStr);
+void handleEnvironmentData(String body);
+void handleCityEvent(String body);
+void handleMcEvent();
+void handleConfigPage();
+void handleSaveWifi();
+void handleStatusPage();
+void handleReset();
+void handleButtonA();
+void handleButtonB();
+
+// ============= 全局 LED 闪烁函数 =============
+void blinkLED(uint32_t color) {
+    k10.rgb->write(-1, color);
+    delay(200);
+    k10.rgb->write(-1, 0x000000);
+    delay(100);
+    k10.rgb->write(-1, color);
+    delay(200);
+    k10.rgb->write(-1, 0x000000);
+}
+
+// ============= 界面切换函数 =============
+void switchToChatMode() {
+    currentDisplayMode = MODE_CHAT;
+    lastModeChangeTime = millis();
+    drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
+}
+
+void switchToEnvironmentMode() {
+    currentDisplayMode = MODE_ENVIRONMENT;
+    lastModeChangeTime = millis();
+}
+
+void switchToCityDashboardMode() {
+    currentDisplayMode = MODE_CITY_DASHBOARD;
+    lastModeChangeTime = millis();
+    drawCityDashboard();
+}
+
+void cycleDisplayMode() {
+    switch (currentDisplayMode) {
+        case MODE_CHAT:
+            switchToEnvironmentMode();
+            break;
+        case MODE_ENVIRONMENT:
+            switchToCityDashboardMode();
+            break;
+        case MODE_CITY_DASHBOARD:
+        default:
+            switchToChatMode();
+            break;
+    }
+}
+
+void checkAutoReturnToChat() {
+    if (currentDisplayMode != MODE_CHAT && (millis() - lastModeChangeTime > AUTO_RETURN_TIMEOUT)) {
+        switchToChatMode();
+    }
+}
+
+// ---------- 屏幕工具 - 聊天UI ----------
+void drawUI(String statusLine1, String statusLine2, uint32_t statusColor1, uint32_t statusColor2) {
+    k10.canvas->canvasClear();
+    k10.setScreenBackground(0x0A0A1A);
+
+    // 顶部状态区域
+    k10.canvas->canvasText(statusLine1, 10, 10, statusColor1, k10.canvas->eCNAndENFont16, 50, true);
+    k10.canvas->canvasText(statusLine2, 10, 38, statusColor2, k10.canvas->eCNAndENFont16, 45, true);
+
+    // 模式指示器
+    String modeIndicator = "[聊天]";
+    k10.canvas->canvasText(modeIndicator, 180, 24, 0x6688AA, k10.canvas->eCNAndENFont16, 20, true);
+
+    // 状态指示点
+    k10.canvas->canvasCircle(220, 20, 6, statusColor1, statusColor1, true);
+
+    // 消息列表标题
+    k10.canvas->canvasText("== 消息记录 ==", 10, 70, 0x6688AA, k10.canvas->eCNAndENFont16, 30, true);
+
+    // 消息列表
+    int y = 92;
+    for (int i = 0; i < msgCount; i++) {
+        int idx = (msgHead - i + MAX_MSG) % MAX_MSG;
+        if (msgList[idx].length() > 0) {
+            String display = msgList[idx];
+            uint32_t msgColor = 0xCCCCCC;
+            if (display.startsWith("[加入]")) msgColor = 0x66FF66;
+            else if (display.startsWith("[离开]")) msgColor = 0xFFAA44;
+            else if (display.startsWith("[阵亡]")) msgColor = 0xFF4444;
+            else if (display.startsWith("[消息]")) msgColor = 0x44DDFF;
+            else if (display.startsWith("[系统]")) msgColor = 0xAA88FF;
+            else if (display.startsWith("[环境]")) msgColor = 0x00AAFF;
+            else if (display.startsWith("[城市]")) msgColor = 0xFFDD44;
+
+            if (display.length() > 22) {
+                display = display.substring(0, 22) + "...";
+            }
+            k10.canvas->canvasText(display, 12, y, msgColor, k10.canvas->eCNAndENFont16, 38, true);
+            y += 26;
+        }
+    }
+
+    // 底部装饰文字和操作提示
+    k10.canvas->canvasText("◆ MC Bridge v3.1 ◆", 60, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
+    k10.canvas->canvasText("按B键切换界面", 70, 268, 0x556677, k10.canvas->eCNAndENFont16, 18, true);
+
+    k10.canvas->updateCanvas();
+}
+
+// ============= 环境数据专用显示UI =============
+void drawEnvironmentUI(String playerName, String temperature, String humidity, String light, String windSpeed, String weather, String biome) {
+    k10.canvas->canvasClear();
+    k10.setScreenBackground(0x0A0A1A);
+
+    // 标题区域
+    k10.canvas->canvasText("🌍 环境数据监控", 10, 10, 0x00AAFF, k10.canvas->eCNAndENFont16, 50, true);
+    k10.canvas->canvasText("玩家: " + playerName, 10, 35, 0xFFFFFF, k10.canvas->eCNAndENFont16, 45, true);
+
+    // 模式指示器
+    k10.canvas->canvasText("[环境]", 180, 24, 0x00AAFF, k10.canvas->eCNAndENFont16, 20, true);
+
+    // 分隔线
+    k10.canvas->canvasLine(10, 60, 220, 60, 0x334466);
+
+    // 温度显示
+    k10.canvas->canvasText("🌡️ 温度:", 15, 75, 0xFFAA44, k10.canvas->eCNAndENFont16, 30, true);
+    k10.canvas->canvasText(temperature + "°C", 120, 75, 0xFFAA44, k10.canvas->eCNAndENFont16, 30, true);
+
+    // 湿度显示
+    k10.canvas->canvasText("💧 湿度:", 15, 100, 0x44DDFF, k10.canvas->eCNAndENFont16, 30, true);
+    k10.canvas->canvasText(humidity + "%", 120, 100, 0x44DDFF, k10.canvas->eCNAndENFont16, 30, true);
+
+    // 光照显示
+    k10.canvas->canvasText("☀️ 光照:", 15, 125, 0xFFDD44, k10.canvas->eCNAndENFont16, 30, true);
+    k10.canvas->canvasText(light, 120, 125, 0xFFDD44, k10.canvas->eCNAndENFont16, 30, true);
+
+    // 风速显示
+    k10.canvas->canvasText("💨 风速:", 15, 150, 0x66FF66, k10.canvas->eCNAndENFont16, 30, true);
+    k10.canvas->canvasText(windSpeed + "m/s", 120, 150, 0x66FF66, k10.canvas->eCNAndENFont16, 30, true);
+
+    // 天气显示
+    k10.canvas->canvasText("🌤️ 天气:", 15, 175, 0xAA88FF, k10.canvas->eCNAndENFont16, 30, true);
+    String weatherDisplay = weather;
+    if (weather == "clear") weatherDisplay = "晴朗";
+    else if (weather == "storm") weatherDisplay = "暴雨";
+    else if (weather == "thunder") weatherDisplay = "雷暴";
+    k10.canvas->canvasText(weatherDisplay, 120, 175, 0xAA88FF, k10.canvas->eCNAndENFont16, 30, true);
+
+    // 生物群系显示
+    k10.canvas->canvasText("🌿 群系:", 15, 200, 0x00FFAA, k10.canvas->eCNAndENFont16, 30, true);
+    String biomeDisplay = biome;
+    if (biomeDisplay.length() > 12) {
+        biomeDisplay = biomeDisplay.substring(0, 12);
+    }
+    k10.canvas->canvasText(biomeDisplay, 120, 200, 0x00FFAA, k10.canvas->eCNAndENFont16, 30, true);
+
+    // 底部装饰
+    k10.canvas->canvasText("◆ 实时监控 ◆", 60, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
+    k10.canvas->canvasText("按B键切换界面", 70, 268, 0x556677, k10.canvas->eCNAndENFont16, 18, true);
+
+    k10.canvas->updateCanvas();
+}
+
+// ============= 🏙️ 城市管理中心专用显示UI =============
+void drawCityDashboard() {
+    k10.canvas->canvasClear();
+    k10.setScreenBackground(0x0A0A1A);
+
+    // ========== 标题区域 ==========
+    k10.canvas->canvasText("🏙️ 数字城市中心", 10, 8, 0x00FFAA, k10.canvas->eCNAndENFont16, 48, true);
+    k10.canvas->canvasText(cityName, 10, 32, 0xFFFFFF, k10.canvas->eCNAndENFont16, 40, true);
+
+    // 模式指示器和运行时间
+    k10.canvas->canvasText("[城市]", 175, 20, 0x00FFAA, k10.canvas->eCNAndENFont16, 20, true);
+
+    // 分隔线
+    k10.canvas->canvasLine(10, 58, 230, 58, 0x334466);
+
+    // ========== 第一行：基础状态卡片 ==========
+    // 在线人数卡片
+    k10.canvas->canvasText("👥 在线", 12, 68, 0x44DDFF, k10.canvas->eCNAndENFont16, 22, true);
+    k10.canvas->canvasText(String(cityBasic.onlinePlayers) + "/" + String(cityBasic.maxPlayers), 12, 90, 0xFFFFFF, k10.canvas->eCNAndENFont16, 24, true);
+
+    // TPS状态卡片
+    k10.canvas->canvasText("⚡ TPS", 85, 68, 0xFFDD44, k10.canvas->eCNAndENFont16, 22, true);
+    String tpsStr = String(cityBasic.tps, 1);
+    k10.canvas->canvasText(tpsStr, 85, 90, getTPSColor(cityBasic.tps), k10.canvas->eCNAndENFont16, 24, true);
+
+    // 运行时间卡片
+    k10.canvas->canvasText("⏱️ 运行", 155, 68, 0xAA88FF, k10.canvas->eCNAndENFont16, 22, true);
+    String uptimeStr = formatUptime(cityBasic.uptimeHours);
+    k10.canvas->canvasText(uptimeStr, 155, 90, 0xFFFFFF, k10.canvas->eCNAndENFont16, 24, true);
+
+    // ========== 第二行：城市状态指示 ==========
+    k10.canvas->canvasText("📊 城市状态:", 12, 118, 0xCCCCCC, k10.canvas->eCNAndENFont16, 24, true);
+
+    // 状态颜色指示条
+    uint32_t statusBarColor = getCityStatusColor(cityBasic.cityStatus);
+    k10.canvas->canvasRectangle(110, 118, 100, 18, statusBarColor, statusBarColor, true);
+
+    // 状态文字
+    String statusText = translateCityStatus(cityBasic.cityStatus);
+    k10.canvas->canvasText(statusText, 115, 120, 0x000000, k10.canvas->eCNAndENFont16, 22, true);
+
+    // ========== 第三行：人口统计 ==========
+    k10.canvas->canvasText("== 人口统计 ==", 12, 145, 0x6688AA, k10.canvas->eCNAndENFont16, 26, true);
+
+    k10.canvas->canvasText("总入驻: " + String(cityPopulation.totalJoined), 15, 170, 0xCCCCCC, k10.canvas->eCNAndENFont16, 22, true);
+    k10.canvas->canvasText("今日峰值: " + String(cityPopulation.peakToday), 120, 170, 0xFFDD44, k10.canvas->eCNAndENFont16, 22, true);
+
+    k10.canvas->canvasText("总阵亡: " + String(cityPopulation.totalDeaths), 15, 195, 0xFF6666, k10.canvas->eCNAndENFont16, 22, true);
+    k10.canvas->canvasText("均时长: " + String(cityPopulation.avgSessionTime) + "分", 120, 195, 0x66FF66, k10.canvas->eCNAndENFont16, 22, true);
+
+    // ========== 第四行：活动统计 ==========
+    k10.canvas->canvasText("== 活动统计 ==", 12, 220, 0x6688AA, k10.canvas->eCNAndENFont16, 26, true);
+
+    String activityLevelText = translateActivityLevel(cityActivity.activityLevel);
+    uint32_t activityColor = getActivityLevelColor(cityActivity.activityLevel);
+    k10.canvas->canvasText("活跃度: " + activityLevelText, 15, 245, activityColor, k10.canvas->eCNAndENFont16, 22, true);
+
+    // 经济数据（真实银行账户数，与插件 economy_stats 联动）
+    k10.canvas->canvasText("🏦 " + String(cityEconomy.activeBankAccounts) + "户", 130, 245, 0x44DDFF, k10.canvas->eCNAndENFont16, 22, true);
+
+    // 底部信息
+    k10.canvas->canvasText("◆ 智慧城市 v1.0 ◆", 55, 288, 0x334466, k10.canvas->eCNAndENFont16, 25, true);
+    k10.canvas->canvasText("按B键切换界面", 70, 268, 0x556677, k10.canvas->eCNAndENFont16, 18, true);
+
+    k10.canvas->updateCanvas();
+}
+
+// ============= 城市数据辅助函数 =============
+uint32_t getTPSColor(float tps) {
+    if (tps >= 18.0) return 0x66FF66;
+    if (tps >= 15.0) return 0xFFDD44;
+    if (tps >= 10.0) return 0xFFAA44;
+    return 0xFF4444;
+}
+
+uint32_t getCityStatusColor(String status) {
+    if (status == "EXCELLENT") return 0x66FF66;
+    if (status == "NORMAL") return 0x44DDFF;
+    if (status == "BUSY") return 0xFFDD44;
+    if (status == "WARNING") return 0xFFAA44;
+    if (status == "CRITICAL") return 0xFF4444;
+    return 0xCCCCCC;
+}
+
+String translateCityStatus(String status) {
+    if (status == "EXCELLENT") return "卓越";
+    if (status == "NORMAL") return "正常";
+    if (status == "BUSY") return "繁忙";
+    if (status == "WARNING") return "警告";
+    if (status == "CRITICAL") return "紧急";
+    return status;
+}
+
+String translateActivityLevel(String level) {
+    if (level == "VERY_HIGH") return "极高";
+    if (level == "HIGH") return "高";
+    if (level == "MODERATE") return "中等";
+    if (level == "LOW") return "低";
+    if (level == "MINIMAL") return "极低";
+    return level;
+}
+
+uint32_t getActivityLevelColor(String level) {
+    if (level == "VERY_HIGH") return 0xFF4444;
+    if (level == "HIGH") return 0xFFAA44;
+    if (level == "MODERATE") return 0xFFDD44;
+    if (level == "LOW") return 0x44DDFF;
+    if (level == "MINIMAL") return 0x666666;
+    return 0xCCCCCC;
+}
+
+String formatUptime(float hours) {
+    if (hours < 1.0) {
+        int minutes = (int)(hours * 60);
+        return String(minutes) + "分";
+    } else if (hours < 24.0) {
+        return String((int)hours) + "时";
+    } else {
+        int days = (int)(hours / 24);
+        int remainderHours = (int)(hours) % 24;
+        return String(days) + "天" + String(remainderHours) + "时";
+    }
+}
+
+// ============= 城市事件管理（环形缓冲区） =============
+void addCityEvent(String type, String source, String description, uint32_t color) {
+    cityEvents[cityEventHead] = {type, source, description, color, millis()};
+    cityEventHead = (cityEventHead + 1) % MAX_CITY_EVENTS;
+    if (cityEventCount < MAX_CITY_EVENTS) cityEventCount++;
+}
+
+// ============= 城市数据处理函数 =============
+void processCityInitData(String body) {
+    cityName = getJsonValue(body, "city_name");
+    if (cityName == "") cityName = "Minecraft智慧城市";
+
+    String foundedStr = getJsonValue(body, "founded_date");
+    if (foundedStr != "") {
+        cityFoundedTime = foundedStr.toInt();
+    } else {
+        cityFoundedTime = millis();
+    }
+
+    cityInitialized = true;
+
+    addMessage("[城市] 🏙️ " + cityName + " 已初始化");
+    blinkLED(0x00FFAA);
+
+    Serial.println("[城市] 初始化完成: " + cityName);
+}
+
+void processCityDashboardData(String body) {
+    // 使用新解析函数，支持嵌套字段
+    String onlinePlayersStr = getJsonValue(body, "basic_stats.online_players");
+    String maxPlayersStr = getJsonValue(body, "basic_stats.max_players");
+    String tpsStr = getJsonValue(body, "basic_stats.tps");
+    String cityStatusStr = getJsonValue(body, "basic_stats.city_status");
+    String uptimeStr = getJsonValue(body, "basic_stats.uptime_hours");
+
+    if (onlinePlayersStr != "") cityBasic.onlinePlayers = onlinePlayersStr.toInt();
+    if (maxPlayersStr != "") cityBasic.maxPlayers = maxPlayersStr.toInt();
+    if (tpsStr != "") cityBasic.tps = tpsStr.toFloat();
+    if (cityStatusStr != "") cityBasic.cityStatus = cityStatusStr;
+    if (uptimeStr != "") cityBasic.uptimeHours = uptimeStr.toFloat();
+
+    cityBasic.playerLoad = cityBasic.maxPlayers > 0 ? (cityBasic.onlinePlayers * 100 / cityBasic.maxPlayers) : 0;
+
+    String totalJoinedStr = getJsonValue(body, "population_stats.total_joined");
+    String totalDeathsStr = getJsonValue(body, "population_stats.total_deaths");
+    String avgSessionStr = getJsonValue(body, "population_stats.avg_session_time");
+    String peakTodayStr = getJsonValue(body, "population_stats.peak_today");
+
+    if (totalJoinedStr != "") cityPopulation.totalJoined = totalJoinedStr.toInt();
+    if (totalDeathsStr != "") cityPopulation.totalDeaths = totalDeathsStr.toInt();
+    if (avgSessionStr != "") cityPopulation.avgSessionTime = avgSessionStr.toInt();
+    if (peakTodayStr != "") cityPopulation.peakToday = peakTodayStr.toInt();
+    cityPopulation.currentOnline = cityBasic.onlinePlayers;
+
+    String messagesStr = getJsonValue(body, "activity_stats.messages_sent");
+    String blocksBrokenStr = getJsonValue(body, "activity_stats.blocks_broken");
+    String blocksPlacedStr = getJsonValue(body, "activity_stats.blocks_placed");
+    String activityLevelStr = getJsonValue(body, "activity_stats.activity_level");
+
+    if (messagesStr != "") cityActivity.messagesSent = messagesStr.toInt();
+    if (blocksBrokenStr != "") cityActivity.blocksBroken = blocksBrokenStr.toInt();
+    if (blocksPlacedStr != "") cityActivity.blocksPlaced = blocksPlacedStr.toInt();
+    if (activityLevelStr != "") cityActivity.activityLevel = activityLevelStr;
+
+    // 经济统计（与插件 economy_stats 联动：真实银行账户与交易数据）
+    String totalTxStr = getJsonValue(body, "economy_stats.total_transactions");
+    String totalVolStr = getJsonValue(body, "economy_stats.total_volume");
+    String bankAcctStr = getJsonValue(body, "economy_stats.active_bank_accounts");
+    String wealthStr = getJsonValue(body, "economy_stats.server_wealth");
+
+    if (totalTxStr != "") cityEconomy.totalTransactions = totalTxStr.toInt();
+    if (totalVolStr != "") cityEconomy.totalVolume = totalVolStr.toInt();
+    if (bankAcctStr != "") cityEconomy.activeBankAccounts = bankAcctStr.toInt();
+    if (wealthStr != "") cityEconomy.serverWealth = wealthStr.toDouble();
+
+    Serial.println("[城市] 数据更新: 在线=" + String(cityBasic.onlinePlayers) +
+                   ", TPS=" + String(cityBasic.tps) +
+                   ", 总入驻=" + String(cityPopulation.totalJoined));
+
+    if (currentDisplayMode == MODE_CITY_DASHBOARD) {
+        drawCityDashboard();
+    }
+}
+
+void processCityEventData(String eventDataStr) {
+    String eventType = getJsonValue(eventDataStr, "type");
+    String eventSource = getJsonValue(eventDataStr, "source");
+    String eventDesc = getJsonValue(eventDataStr, "description");
+    String eventColorStr = getJsonValue(eventDataStr, "color");
+
+    uint32_t color = 0xFFFFFF;
+    if (eventColorStr.startsWith("#")) {
+        color = (uint32_t)strtol(eventColorStr.substring(1).c_str(), NULL, 16);
+    }
+
+    addCityEvent(eventType, eventSource, eventDesc, color);
+
+    String chatMsg = "[城市] 🔔 " + eventDesc;
+    addMessage(chatMsg);
+
+    if (eventType == "PLAYER_JOIN") {
+        showTempStatus("✨ 新市民", eventSource + " 加入城市", 0x66FF66, 0xFFFFFF);
+    } else if (eventType == "PLAYER_QUIT") {
+        showTempStatus("👋 市民离开", eventSource + " 离开城市", 0xFFAA44, 0xFFFFFF);
+    } else if (eventType == "PLAYER_DEATH") {
+        showTempStatus("💀 紧急事件", eventSource + " 阵亡", 0xFF4444, 0xFFFFFF);
+        blinkLED(0xFF4444);
+    } else if (eventType == "STATUS_CHANGE") {
+        showTempStatus("⚠️ 状态变更", eventDesc, color, 0xFFFFFF);
+        blinkLED(color);
+    } else if (eventType == "MILESTONE") {
+        showTempStatus("🎉 里程碑", eventDesc, 0xFFDD44, 0xFFFFFF);
+        blinkLED(0xFFDD44);
+    }
+}
+
+// ---------- 日志与消息 ----------
+void addMessage(String msg) {
+    // 存入显示队列
+    msgList[msgHead] = msg;
+    msgHead = (msgHead + 1) % MAX_MSG;
+    if (msgCount < MAX_MSG) msgCount++;
+
+    // 加入日志缓冲
+    logBuffer += msg + "\n";
+    if (logBuffer.length() > 1024) flushLogBuffer(); // 防止缓冲过大
+}
+
+void flushLogBuffer() {
+    if (!sdOk || logBuffer.length() == 0) return;
+    File logFile = SD.open("/log.txt", FILE_APPEND);
+    if (logFile) {
+        logFile.print(logBuffer);
+        logFile.close();
+        logBuffer = "";
+        lastLogFlush = millis();
+    }
+}
+
+// ---------- 状态栏管理 ----------
+void setDefaultStatus(String line1, String line2, uint32_t color1, uint32_t color2) {
+    defaultStatusLine1 = line1;
+    defaultStatusLine2 = line2;
+    defaultColor1 = color1;
+    defaultColor2 = color2;
+    if (!isTempStatus && currentDisplayMode == MODE_CHAT) {
+        drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
+    }
+}
+
+void showTempStatus(String line1, String line2, uint32_t color1, uint32_t color2) {
+    tempStatusLine1 = line1;
+    tempStatusLine2 = line2;
+    tempColor1 = color1;
+    tempColor2 = color2;
+    isTempStatus = true;
+    statusChangeTime = millis();
+    if (currentDisplayMode == MODE_CHAT) {
+        drawUI(tempStatusLine1, tempStatusLine2, tempColor1, tempColor2);
+    }
+}
+
+void checkRestoreStatus() {
+    if (isTempStatus && (millis() - statusChangeTime >= STATUS_DISPLAY_DURATION)) {
+        isTempStatus = false;
+        if (currentDisplayMode == MODE_CHAT) {
+            drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
+        }
+    }
+}
+
+void updateStatus(String line1, String line2, uint32_t color1, uint32_t color2) {
+    showTempStatus(line1, line2, color1, color2);
+}
+
+// ============= 环境数据显示非阻塞管理 =============
+void checkEnvironmentDisplayTimeout() {
+    if (envState.active && (millis() - envState.startTime >= envState.duration)) {
+        envState.active = false;
+        // 恢复当前模式界面
+        if (currentDisplayMode == MODE_CHAT) {
+            drawUI(defaultStatusLine1, defaultStatusLine2, defaultColor1, defaultColor2);
+        } else if (currentDisplayMode == MODE_CITY_DASHBOARD) {
+            drawCityDashboard();
+        }
+    }
+}
+
+// ============= HTML 工具函数 =============
+String escapeHtml(String s) {
+    s.replace("&", "&amp;");
+    s.replace("<", "&lt;");
+    s.replace(">", "&gt;");
+    s.replace("\"", "&quot;");
+    return s;
+}
+
+String escapeAttr(String s) {
+    s.replace("&", "&amp;");
+    s.replace("\"", "&quot;");
+    return s;
+}
+
+// ============= JSON 解析（使用 ArduinoJson） =============
+String getJsonValue(String data, String key) {
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, data);
+    if (error) {
+        // 如果解析失败，返回空，保留兼容性
+        return "";
+    }
+
+    if (key.indexOf('.') != -1) {
+        // 嵌套路径，如 "basic_stats.online_players"
+        String prefix = key.substring(0, key.indexOf('.'));
+        String subkey = key.substring(key.indexOf('.') + 1);
+        JsonVariant nested = doc[prefix][subkey];
+        if (!nested.isNull()) {
+            if (nested.is<String>()) return nested.as<String>();
+            else return String(nested.as<float>()); // 数字转字符串
+        }
+        return "";
+    }
+
+    JsonVariant value = doc[key];
+    if (!value.isNull()) {
+        if (value.is<String>()) return value.as<String>();
+        else return String(value.as<float>());
+    }
+    return "";
+}
+
+// 提取 JSON 对象（用于 event 字段）
+String extractJsonObject(String data, String key) {
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, data);
+    if (error) return "";
+    JsonObject obj = doc[key];
+    if (obj.isNull()) return "";
+    String result;
+    serializeJson(obj, result);
+    return result;
+}
+
+// ============= 配网 Web 页面 =============
+void handleConfigPage() {
+    if (!scanDone) {
+        int n = WiFi.scanNetworks();
+        cachedSsidList = "";
+        for (int i = 0; i < n; ++i) {
+            String ssid = WiFi.SSID(i);
+            String safeSsid = escapeHtml(ssid);
+            String attrSsid = escapeAttr(ssid);
+            cachedSsidList += "<div class=\"item\" data-ssid=\"" + attrSsid + "\">" + safeSsid + " (" + WiFi.RSSI(i) + "dBm)</div>";
+        }
+        scanDone = true;
+    }
+
+    String html = R"rawliteral(
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>K10 配网</title>
+<style>
+    body{font-family:sans-serif;padding:15px;background:#0A0A1A;color:#CCCCCC;}
+    h2{color:#00FFAA;}
+    input{width:100%;padding:10px;margin:10px 0;border-radius:5px;border:1px solid #334466;background:#1A1A2E;color:#FFF;box-sizing:border-box;}
+    button{width:100%;padding:12px;background:#00FFAA;border:none;border-radius:5px;font-weight:bold;font-size:16px;color:#0A0A1A;}
+    .item{background:#1A1A2E;padding:10px;margin:5px 0;border-radius:5px;cursor:pointer;border:1px solid #334466;}
+    .item:hover{background:#2A2A4E;border-color:#00FFAA;}
+</style></head><body>
+<h2>📶 K10 WiFi 配置</h2>
+<form action="/save" method="POST">
+    <input type="text" id="ssid" name="ssid" placeholder="WiFi名称" required>
+    <input type="password" name="pass" placeholder="密码" required>
+    <button type="submit">保存并重启</button>
+</form>
+<h3 style="color:#6688AA;">附近网络：</h3>
+<div id="list">)rawliteral" + cachedSsidList + R"rawliteral(</div>
+<script>
+    document.getElementById('list').addEventListener('click', function(e) {
+        var target = e.target.closest('.item');
+        if (target) {
+            document.getElementById('ssid').value = target.getAttribute('data-ssid');
+        }
+    });
+</script>
+</body></html>)rawliteral";
+
+    server.send(200, "text/html", html);
+}
+
+void handleSaveWifi() {
+    if (server.hasArg("ssid") && server.hasArg("pass")) {
+        prefs.begin("wifi", false);
+        prefs.putString("ssid", server.arg("ssid"));
+        prefs.putString("pass", server.arg("pass"));
+        prefs.end();
+        server.send(200, "text/html", "<html><body><h2>✅ 已保存，设备重启中...</h2></body></html>");
+        delay(2000);
+        ESP.restart();
+    } else {
+        server.send(400, "text/html", "<html><body><h2>❌ 参数错误</h2></body></html>");
+    }
+}
+
+// ============= Minecraft 事件处理 =============
+void handleEnvironmentData(String body) {
+    String playerName = getJsonValue(body, "player_name");
+    String requestId = getJsonValue(body, "request_id");
+    String temperature = getJsonValue(body, "temperature");
+    String humidity = getJsonValue(body, "humidity");
+    String light = getJsonValue(body, "light");
+    String windSpeed = getJsonValue(body, "wind_speed");
+    String weather = getJsonValue(body, "weather");
+    String biome = getJsonValue(body, "biome");
+
+    // LED 提示
+    k10.rgb->write(-1, 0x00AAFF);
+    delay(200);
+    k10.rgb->write(-1, 0x000000);
+    delay(100);
+    k10.rgb->write(-1, 0x00AAFF);
+    delay(200);
+    k10.rgb->write(-1, 0x000000);
+
+    // 添加聊天消息
+    addMessage("[环境] 🌍 " + playerName);
+
+    // 显示环境界面（立即显示，但不阻塞）
+    drawEnvironmentUI(playerName, temperature, humidity, light, windSpeed, weather, biome);
+
+    // 设置环境显示状态，用于超时恢复
+    envState.active = true;
+    envState.startTime = millis();
+    envState.duration = 5000;
+
+    // 响应 JSON
+    String response = "{\"response_type\":\"acknowledgment\",\"status\":\"success\",\"request_id\":\"" + requestId + "\",\"message\":\"环境数据已接收\",\"data\":{\"temperature\":\"" + temperature + "\",\"humidity\":\"" + humidity + "\",\"light\":\"" + light + "\",\"wind_speed\":\"" + windSpeed + "\",\"weather\":\"" + weather + "\",\"biome\":\"" + biome + "\"}}";
+    server.send(200, "application/json", response);
+
+    // 记录到 SD 卡（通过缓冲）
+    if (sdOk) {
+        logBuffer += "[" + String(millis()) + "] " + playerName + " - T:" + temperature + "°C H:" + humidity + "% L:" + light + " W:" + windSpeed + "m/s Weather:" + weather + " Biome:" + biome + "\n";
+        if (logBuffer.length() > 1024) flushLogBuffer();
+    }
+}
+
+void handleCityEvent(String body) {
+    String eventType = getJsonValue(body, "event_type");
+
+    if (eventType == "CITY_INIT") {
+        processCityInitData(body);
+    } else if (eventType == "CITY_DASHBOARD") {
+        processCityDashboardData(body);
+    } else if (eventType == "CITY_EVENT") {
+        String eventData = extractJsonObject(body, "event");
+        if (eventData != "") {
+            processCityEventData(eventData);
+        }
+    } else if (eventType == "DETAILED_STATISTICS") {
+        Serial.println("[城市] 收到详细统计数据");
+    }
+
+    server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+void handleMcEvent() {
+    if (!server.hasArg("plain")) {
+        server.send(400, "application/json", "{\"status\":\"error\",\"msg\":\"missing body\"}");
+        return;
+    }
+
+    String body = server.arg("plain");
+    String event = getJsonValue(body, "event");
+    String player = getJsonValue(body, "player");
+    String msg = getJsonValue(body, "message");
+
+    // 检查是否是城市数据事件
+    String eventType = getJsonValue(body, "event_type");
+    if (eventType.startsWith("CITY_") || eventType == "DETAILED_STATISTICS") {
+        handleCityEvent(body);
+        return;
+    }
+
+    // 传统事件处理
+    if (event == "player_join") {
+        blinkLED(0x00FF66);
+        addMessage("[加入] ⭐ " + player);
+        showTempStatus("✨ 欢迎!", player + " 加入了游戏", 0x00FF66, 0xFFFFFF);
+    } else if (event == "player_quit") {
+        blinkLED(0xFFAA44);
+        addMessage("[离开] 👋 " + player);
+        showTempStatus("👋 再见!", player + " 离开了游戏", 0xFFAA44, 0xFFFFFF);
+    } else if (event == "player_death") {
+        blinkLED(0xFF3344);
+        addMessage("[阵亡] 💀 " + player);
+        showTempStatus("💀 啊哦!", player + " 阵亡了", 0xFF3344, 0xFFFFFF);
+    } else if (event == "custom_msg") {
+        blinkLED(0x44DDFF);
+        addMessage("[消息] 💬 " + msg);
+        showTempStatus("💬 来自MC:", msg, 0x44DDFF, 0xFFFFFF);
+    } else if (event == "environment_data") {
+        handleEnvironmentData(body);
+        return;
+    } else {
+        server.send(200, "application/json", "{\"status\":\"ok\"}");
+        return;
+    }
+    server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+// ============= 状态页 & 重置 =============
+void handleStatusPage() {
+    String html = R"rawliteral(
+<!DOCTYPE html><meta charset="utf-8">
+<html>
+<body style="font-family:sans-serif;background:#0A0A1A;color:#CCCCCC;padding:20px;">
+<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.1</h2>
+<p>✅ 状态：运行中</p>
+<p>📡 IP: )rawliteral" + deviceIP + R"rawliteral(</p>
+<p>🏙️ 城市：)rawliteral" + (cityInitialized ? cityName : "未连接") + R"rawliteral(</p>
+<p>🔌 事件接口：POST /mc_event</p>
+<hr>
+<h3>📊 城市实时数据：</h3>
+<p>👥 在线: )rawliteral" + String(cityBasic.onlinePlayers) + "/" + String(cityBasic.maxPlayers) + R"rawliteral(</p>
+<p>⚡ TPS: )rawliteral" + String(cityBasic.tps, 1) + R"rawliteral(</p>
+<p>📈 状态: )rawliteral" + translateCityStatus(cityBasic.cityStatus) + R"rawliteral(</p>
+<p>🏦 银行账户: )rawliteral" + String(cityEconomy.activeBankAccounts) + R"rawliteral( | 总交易: )rawliteral" + String(cityEconomy.totalTransactions) + R"rawliteral(</p>
+<p><a href="/reset" style="color:#FF6644;">🔄 清除WiFi并重启</a></p>
+</body></html>)rawliteral";
+
+    server.send(200, "text/html", html);
+}
+
+void handleReset() {
+    prefs.begin("wifi", false);
+    prefs.clear();
+    prefs.end();
+    server.send(200, "text/html", "<html><body><h2>🔄 已重置，设备重启中...</h2></body></html>");
+    delay(1500);
+    ESP.restart();
+}
+
+// ============= 按钮状态机处理 =============
+void handleButtonA() {
+    bool pressed = k10.buttonA->isPressed();
+    switch (btnAState) {
+        case BTN_IDLE:
+            if (pressed) {
+                btnAState = BTN_PRESSED;
+                btnAPressTime = millis();
+            }
+            break;
+        case BTN_PRESSED:
+            if (!pressed) {
+                // 短按释放不做特殊处理，长按在循环中已处理
+                btnAState = BTN_IDLE;
+            } else if (millis() - btnAPressTime >= 2000) {
+                // 长按 2 秒 -> 重置 WiFi
+                btnAState = BTN_PROCESSED;
+                showTempStatus("🔄 重置WiFi...", "即将重启", 0xFF3344, 0xFFFFFF);
+                prefs.begin("wifi", false);
+                prefs.clear();
+                prefs.end();
+                delay(1000);
+                ESP.restart();
+            }
+            break;
+        case BTN_PROCESSED:
+            if (!pressed) btnAState = BTN_IDLE;
+            break;
+    }
+}
+
+void handleButtonB() {
+    bool pressed = k10.buttonB->isPressed();
+    switch (btnBState) {
+        case BTN_IDLE:
+            if (pressed) {
+                btnBState = BTN_PRESSED;
+                btnBPressTime = millis();
+            }
+            break;
+        case BTN_PRESSED:
+            if (!pressed) {
+                // 短按释放 -> 切换模式（长按超过500ms视为无效，避免误触）
+                if (millis() - btnBPressTime < 500) {
+                    cycleDisplayMode();
+                    blinkLED(0x00FFAA);
+                }
+                btnBState = BTN_IDLE;
+            } else if (millis() - btnBPressTime >= 500) {
+                // 长按，忽略此次按下
+                btnBState = BTN_PROCESSED;
+            }
+            break;
+        case BTN_PROCESSED:
+            if (!pressed) btnBState = BTN_IDLE;
+            break;
+    }
+}
+
+// ================= 主程序 =================
+void setup() {
+    Serial.begin(115200);
+    k10.begin();
+    k10.initScreen(2);
+    k10.creatCanvas();
+
+    // SD 卡初始化
+    if (SD.begin()) {
+        sdOk = true;
+        if (!SD.exists("/log.txt")) {
+            File f = SD.open("/log.txt", FILE_WRITE);
+            if (f) {
+                f.println("=== K10 MC Bridge Log v3.1 ===");
+                f.close();
+            }
+        }
+    } else {
+        sdOk = false;
+        Serial.println("SD卡初始化失败");
+    }
+
+    // 启动时 A 键长按重置（已在主循环中处理，这里不再重复）
+    // 加载 WiFi 配置
+    prefs.begin("wifi", true);
+    String saved_ssid = prefs.getString("ssid", "");
+    String saved_pass = prefs.getString("pass", "");
+    prefs.end();
+
+    if (saved_ssid == "") {
+        needApConfig = true;
+    } else {
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(saved_ssid.c_str(), saved_pass.c_str());
+        int retry = 0;
+        while (WiFi.status() != WL_CONNECTED && retry < 60) {
+            showTempStatus("📶 连接中 " + String(retry + 1) + "/60", saved_ssid, 0xFFFF44, 0xFFFFFF);
+            delay(500);
+            retry++;
+        }
+        if (WiFi.status() != WL_CONNECTED) {
+            needApConfig = true;
+        } else {
+            deviceIP = WiFi.localIP().toString();
+        }
+    }
+
+    if (needApConfig) {
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP("K10-MC-Setup");
+        setDefaultStatus("📶 配网模式", "连接热点 192.168.4.1", 0xFFAA44, 0xCCCCCC);
+        server.on("/", handleConfigPage);
+        server.on("/save", HTTP_POST, handleSaveWifi);
+    } else {
+        setDefaultStatus("✅ 已连接", "IP: " + deviceIP, 0x00FF66, 0xCCCCCC);
+        addMessage("[系统] 🚀 设备已启动，IP: " + deviceIP);
+        addMessage("[系统] 🏙️ 数字城市系统就绪");
+        server.on("/", handleStatusPage);
+        server.on("/mc_event", HTTP_POST, handleMcEvent);
+        server.on("/reset", handleReset);
+    }
+    server.begin();
+
+    Serial.println("[系统] K10 MC Bridge v3.1 启动完成");
+    Serial.println("[系统] 数字城市管理中心已激活 (优化版)");
+}
+
+void loop() {
+    server.handleClient();
+    checkRestoreStatus();
+    checkAutoReturnToChat();
+    checkEnvironmentDisplayTimeout();
+    handleButtonA();
+    handleButtonB();
+    flushLogBuffer();
+
+    delay(10);
+}

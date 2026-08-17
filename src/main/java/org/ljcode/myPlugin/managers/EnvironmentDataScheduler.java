@@ -336,7 +336,8 @@ public class EnvironmentDataScheduler {
                     }
                 }
             };
-            calculationTask.runTaskTimerAsynchronously(plugin, currentInterval, currentInterval);
+            // 保持同步任务：calculateAndSend 调用非线程安全的Bukkit API
+            calculationTask.runTaskTimer(plugin, currentInterval, currentInterval);
         }
     }
 
@@ -356,7 +357,8 @@ public class EnvironmentDataScheduler {
                     }
                 }
             };
-            calculationTask.runTaskTimerAsynchronously(plugin, currentInterval, currentInterval);
+            // 保持同步任务：calculateAndSend 调用非线程安全的Bukkit API
+            calculationTask.runTaskTimer(plugin, currentInterval, currentInterval);
         }
     }
 

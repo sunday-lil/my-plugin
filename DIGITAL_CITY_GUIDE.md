@@ -53,7 +53,7 @@ k10:
 ### 第二步：K10 硬件端
 
 1. **烧录固件**
-- 使用 Arduino IDE 打开 [mn.md](mn.md) 文件
+- 使用 Arduino IDE 打开 [mn.txt](mn.txt) 文件（标准缩进版；[mn.md](mn.md) 为原始备份，内容一致）
 - 选择开发板: **ESP32-S3-N8R2**
 - 上传代码到 K10
 
@@ -155,6 +155,12 @@ k10:
     "avg_session_time": 45,
     "peak_today": 8
   },
+  "economy_stats": {
+    "total_transactions": 89,
+    "total_volume": 45000,
+    "active_bank_accounts": 5,
+    "server_wealth": 128000.5
+  },
   "activity_stats": {
     "messages_sent": 2340,
     "blocks_broken": 5678,
@@ -163,6 +169,9 @@ k10:
   }
 }
 ```
+
+> 💡 **v1.1.0 起经济数据与银行系统真实联动**：`active_bank_accounts` 为真实活跃银行账户数（余额 > 0），
+> K10 设备端在城市仪表盘活动统计行显示 `🏦 N户`，设备状态页同步展示。
 
 #### CITY_EVENT - 实时事件
 ```json
@@ -187,24 +196,32 @@ k10:
 ```yaml
 # 数字城市管理系统设置
 digital-city:
-  # 是否启用城市管理系统
+  # 是否启用城市管理系统（需要先启用 k10.enabled）
   enabled: true
-  
+
+  # 城市名称（同步显示到 K10 屏幕）
+  city-name: "Minecraft智慧城市"
+
   # 数据发送间隔（ticks，20ticks=1秒）
   dashboard-interval: 600        # 30秒
-  
+
   # 统计收集间隔
   statistics-interval: 6000      # 5分钟
-  
-  # 城市状态阈值
-  status-thresholds:
-    excellent-tps: 18.0
-    good-tps: 15.0
-    fair-tps: 10.0
-    warning-deaths: 20
-    critical-deaths: 50
-    busy-player-percent: 80
+
+  # 调试模式（控制台详细日志）
+  debug-mode: true
+
+  # 玩家加入时推送欢迎事件到 K10
+  welcome-message-enabled: true
+
+  # 方块操作追踪（破坏/放置）
+  block-tracking-enabled: true
+
+  # 聊天消息追踪
+  chat-tracking-enabled: true
 ```
+
+> 注：城市状态阈值（卓越/警告/紧急等）当前为代码内置逻辑，暂无配置项。
 
 ### 调试模式
 

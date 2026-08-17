@@ -215,6 +215,8 @@ economy:
 - ✅ 转账手续费可配置
 - ✅ 完善的输入验证（防止负数、非法字符）
 - ✅ 余额不足检测与提示
+- ✅ **数据独立存储** - 银行与钱包分离，持久化于 `bank.yml`，互不干扰
+- ✅ **K10 联动** - 真实银行账户数与交易数据实时推送 K10 数字城市仪表盘
 - ✅ **完整单元测试覆盖**（测试覆盖率 100%）
 
 **测试框架：**
@@ -230,11 +232,10 @@ economy:
 **配置示例：**
 ```yaml
 bank:
-  enabled: true
-  initial-balance: 1000.0    # 初始银行余额
-  min-deposit: 1.0            # 最小存款额
-  max-deposit: 1000000.0      # 最大存款额
-  transfer-fee: 0.0           # 转账手续费（0=免费）
+  initial-balance: 1000.0    # 新开银行账户初始余额
+  min-deposit: 1.0           # 单笔最低存款金额
+  max-deposit: 1000000.0     # 单笔最高存款金额
+  transfer-fee: 0.0          # 银行内转账手续费（固定金额，0=免费）
 ```
 
 ---
@@ -464,7 +465,7 @@ Minecraft智慧城市 [城市]
 总阵亡: 12      均时长: 45分
 
 == 活动统计 ==
-活跃度: 高
+活跃度: 高       🏦 5户
 
 ◆ 智慧城市 v1.0 ◆
 按B键切换界面
@@ -498,7 +499,8 @@ k10:
 
 **第三步：烧录 K10 固件**
 ```bash
-# 用 Arduino IDE 打开 mn.md
+# 用 Arduino IDE 打开 mn.txt（标准缩进版设备代码）
+# 注：mn.md 为未格式化的原始备份，内容与 mn.txt 一致
 # 选择板子: ESP32-S3-N8R2
 # 上传到 K10 设备
 ```
@@ -516,7 +518,7 @@ k10:
 
 #### 📡 数据通信协议示例
 
-**CITY_DASHBOARD - 仪表盘数据（每30秒发送）：**
+**CITY_DASHBOARD - 仪表盘数据（默认每30秒发送，`dashboard-interval` 可调）：**
 ```json
 {
   "event_type": "CITY_DASHBOARD",
@@ -530,7 +532,20 @@ k10:
   "population_stats": {
     "total_joined": 150,
     "peak_today": 8,
-    "total_deaths": 12
+    "total_deaths": 12,
+    "avg_session_time": 45
+  },
+  "economy_stats": {
+    "total_transactions": 89,
+    "total_volume": 45000,
+    "active_bank_accounts": 5,
+    "server_wealth": 128000.5
+  },
+  "activity_stats": {
+    "messages_sent": 2340,
+    "blocks_broken": 5678,
+    "blocks_placed": 3456,
+    "activity_level": "HIGH"
   }
 }
 ```
@@ -547,14 +562,14 @@ k10:
 
 ```yaml
 digital-city:
-  enabled: true
-  dashboard-interval: 600        # 30秒刷新
-  statistics-interval: 6000      # 5分钟收集详细统计
-  
-  status-thresholds:
-    excellent-tps: 18.0
-    warning-deaths: 20
-    critical-deaths: 50
+  enabled: true                          # 启用数字城市管理（需 k10.enabled）
+  city-name: "Minecraft智慧城市"          # 城市名称（同步显示到 K10 屏幕）
+  dashboard-interval: 600                # 仪表盘刷新间隔（ticks，600=30秒）
+  statistics-interval: 6000              # 详细统计收集间隔（ticks，6000=5分钟）
+  debug-mode: true                       # 调试日志
+  welcome-message-enabled: true          # 玩家加入时推送欢迎事件
+  block-tracking-enabled: true           # 方块操作追踪
+  chat-tracking-enabled: true            # 聊天消息追踪
 ```
 
 #### 🛠️ 故障排除
@@ -602,7 +617,23 @@ digital-city:
 
 启动插件后，打开浏览器访问：
 - **本地访问**: http://localhost:8080
-- **局域网访问**: http://你的 IP:8080
+- **局域网访问**: http://你的 IP:8080（API 默认仅放行本机与内网网段，见下方安全设置）
+
+#### 安全设置 ⭐ v1.1.0 新增
+
+API 接口（`/api/*`）已启用访问控制，配置位于 `config.yml`：
+
+```yaml
+web:
+  # IP 白名单（支持 * 结尾的通配前缀；未配置时默认仅允许本机）
+  allowed-ips:
+    - "127.0.0.1"
+    - "::1"
+    - "192.168.*"
+    - "10.*"
+  # 可选 API 令牌：设为非空值后，请求必须携带 ?token=xxx 或 X-API-Token 请求头
+  api-token: ""
+```
 
 #### 功能特性
 
@@ -610,7 +641,7 @@ digital-city:
 - ✅ **分类清晰** - 按功能模块分组显示
 - ✅ **实时生效** - 修改后立即应用到服务器（部分需重载）
 - ✅ **多端适配** - 支持 PC、平板、手机浏览器
-- ✅ **安全防护** - 基于 NanoHTTPD 的轻量级 Web 服务器
+- ✅ **安全防护** - IP 白名单 + 可选 Token 认证，默认仅本机访问
 
 #### 技术实现
 
@@ -1075,15 +1106,16 @@ permissions:
 4. 查看 `[K10数字孪生]` 开头的日志输出
 
 ### Q3: 如何备份经济数据？
-**A:** 经济数据存储在 `plugins/MyPlugin/economy.yml`，定期备份此文件即可。
-插件也会每 30 分钟自动保存一次。
+**A:** 钱包数据存储在 `plugins/MyPlugin/economy.yml`，银行数据独立存储在 `plugins/MyPlugin/bank.yml`，定期备份这两个文件即可。
+插件也会每 5 分钟自动保存一次。
 
 ### Q4: Web 配置页面打不开？
 **A:**
-1. 确认端口 8080 未被占用
+1. 确认端口 8080 未被占用（可在 `config.yml` 的 `web-server.port` 修改）
 2. 尝试访问 `http://localhost:8080`
 3. 如果是远程服务器，确认防火墙放行了 8080 端口
-4. 查看控制台是否有 "Web配置服务器已在端口 XXXX 启动" 的提示
+4. API 默认仅放行白名单 IP（本机 + `192.168.*` / `10.*` 内网段），跨网段访问需在 `web.allowed-ips` 中添加你的 IP
+5. 查看控制台是否有 "Web配置服务器已在端口 XXXX 启动" 的提示
 
 ### Q5: 如何添加自定义表情？
 **A:** 编辑 `config.yml` 中的 `chat.hints.custom-emojis` 部分：

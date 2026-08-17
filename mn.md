@@ -158,7 +158,7 @@ void drawEnvDetail();
 void drawNotification(String line1, String line2, uint32_t color1, uint32_t color2);
 void drawConfigPortalUI();
 void drawConnectingUI(int retry, String ssid);
-String getJsonValue(String data, String key);
+String getJsonValue(String data, String key, size_t capacity = 2048);
 String escapeHtml(String s);
 String escapeAttr(String s);
 String extractJsonObject(String data, String key);
@@ -754,7 +754,7 @@ String escapeAttr(String s) {
 // ============= JSON 解析（使用 ArduinoJson） =============
 // v3.3.1: 容量参数化 —— 聚合报告等大消息必须传大容量。
 // 教训: 默认2048字节在10+玩家时NoMemory → event解析为空 → 插件报"未知响应类型"
-String getJsonValue(String data, String key, size_t capacity = 2048) {
+String getJsonValue(String data, String key, size_t capacity) {
     DynamicJsonDocument doc(capacity);
     DeserializationError error = deserializeJson(doc, data);
     if (error) {

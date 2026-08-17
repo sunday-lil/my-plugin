@@ -1,7 +1,7 @@
 # 🤖 项目交接文档 (AI/开发者 Handoff)
 
 > **目的**：让下一个接手者（人类或 AI）在 5 分钟内掌握项目全貌、现状与坑位。
-> **最后更新**: 2026-08-17 · 对应版本 v1.2.0（插件）/ v3.2（K10固件）
+> **最后更新**: 2026-08-17 · 对应版本 v1.2.1（插件文档版）/ v3.3（K10固件）
 
 ---
 
@@ -55,18 +55,18 @@ K10 端入口 `handleMcEvent()` 按字段分发，两套约定并存：
 | 消息类型 | 插件构造处 | K10处理函数 | 关键字段 |
 |---|---|---|---|
 | 传统事件 | K10DigitalTwinListener | handleMcEvent | `event`(player_join/quit/death/custom_msg) + `player`/`message` |
-| 环境聚合报告 ★v1.2.0 | EnvironmentDataScheduler.collectAndSendSummary | handleEnvironmentSummary | `event`="environment_summary" + request_id/player_count/`players`数组{name,temperature,humidity,...}；K10直接ArduinoJson解析数组(getJsonValue不支持数组) |
-| 环境单玩家(兼容) | （v1.2.0已不再自动发送） | handleEnvironmentData | `event`="environment_data" + player_name/request_id/temperature/humidity/light/wind_speed/weather/biome |
+| 环境聚合报告 ★v1.2.0 | EnvironmentDataScheduler.collectAndSendSummary | handleEnvironmentSummary | `event`="environment_summary" + request_id/player_count/`players`数组{name,temperature,humidity,light,wind_speed,weather,biome}；K10直接ArduinoJson解析数组(getJsonValue不支持数组)；★v1.2.1固件v3.3起到达只刷新表格不切页 |
+| 环境单玩家(已废弃) | （v1.2.0起不再发送） | （v3.3固件已删除处理，收到仅回ok+deprecated） | 旧协议 `event`="environment_data"，勿再使用 |
 | 城市初始化 | DigitalCityManager.sendCityInitialization | processCityInitData | `event_type`="CITY_INIT" + city_name/founded_date |
 | 城市仪表盘 | sendCityDashboard(30秒/次,可配) | processCityDashboardData | `event_type`="CITY_DASHBOARD" + 嵌套 basic_stats./population_stats.(含households)/economy_stats./activity_stats.(含redstone_changes) |
 | 城市事件 | addCityEvent | processCityEventData | `event_type`="CITY_EVENT" + 嵌套`event`{type,source,description,color:"#RRGGBB"}；新类型: HOUSING_CHANGE/REDSTONE_SURGE |
 
 **注意**：
 - K10 端 `getJsonValue()` 只支持**一层**嵌套（`basic_stats.tps` 可以，三层不行）；数组必须像 handleEnvironmentSummary 那样直接用 ArduinoJson 迭代
-- K10 用 ArduinoJson：数字会被转成 `"5.00"` 字符串再 toInt()/toFloat()，正常工作；聚合报告doc给到8192字节
+- K10 用 ArduinoJson：数字会被转成 `"5.00"` 字符串再 toInt()/toFloat()，正常工作；聚合报告doc给到12288字节(20玩家全字段)
 - K10 环境响应含 `request_id`，MyPlugin 据此路由到调度器；普通事件响应 `{"status":"ok"}` 无此字段不会误路由
 - 插件端节流按 `event_type`/`event` 字段区分类型，同类型 500ms 内去重
-- K10 v3.2 界面逻辑：默认城市大屏；任何界面30s无操作回大屏；环境报告到达临时显示8s回大屏；事件全屏通知5s后按模式恢复(showTempStatus/checkRestoreStatus配对)
+- K10 v3.3 界面逻辑：三页结构（城市大屏默认/环境表格/玩家详情）；WiFi就绪(networkReady)前只显示配网/连接页；表格页 A/B移动选中行、A+B确认(玩家行→详情/返回行→大屏)、末尾固定返回行；30s无操作回大屏；事件全屏通知约4秒(showTempStatus/checkRestoreStatus配对)；环境报告只刷数据不切页；按键无长按功能，重置WiFi仅网页端/reset
 
 ---
 

@@ -113,6 +113,8 @@ K10 端入口 `handleMcEvent()` 按字段分发，两套约定并存：
 3. git 身份已配置在**仓库级**（sunday-lil），全局未配置，新环境直接 commit 会报 Author identity unknown。
 4. K10 固件无法本地编译验证，只能静态核对协议字段——**改插件 K10 相关代码时，务必对照 mn.txt 的 handleMcEvent/processCityDashboardData 同步核对**。
 5. config.yml 是唯一配置真相源；文档中的 YAML 示例曾出现过死键（status-thresholds、bank.enabled），已全部清理，新增配置务必三处同步（config.yml + 代码读取 + 文档）。
+6. **Mind+ 编译 C++ 陷阱**：默认参数只能写在**前置声明或定义其中一处**（mn.txt 的 getJsonValue 曾因此报 ambiguous 重载歧义）；约定：默认参数放前置声明，定义处不写。
+7. **换新 JAR 必须重启服务器并核对版本**：插件日志若出现 `{deprecated=true, status=ok}` / "未知响应类型"，说明服务器还在跑旧版 JAR（旧版发 environment_data，新版只发 environment_summary）——先 `/version EssentialsX-Clone` 确认版本再查代码。
 
 ---
 

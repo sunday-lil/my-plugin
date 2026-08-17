@@ -15,6 +15,8 @@
 - 🐛 **修复环境聚合报告接收失败**（v3.3.1 热修） - `handleMcEvent`/`handleEnvironmentSummary` 改为单次 16384 字节解析；根因是旧 `getJsonValue` 内部 2048 字节 doc 在 10+ 玩家（body 超 2KB）时 NoMemory，`event` 解析为空匹配失败，K10 回了裸 `{"status":"ok"}`（无 request_id/response_type），插件端报"未知响应类型"
 - 🐛 `getJsonValue`/`extractJsonObject` 容量参数化（默认 2048，大消息传大容量）
 - 🐛 JSON 解析失败改为回 200 + `response_type=error`（避免触发插件 HTTP 非 200 重试逻辑）
+- 🐛 修复 Mind+ 编译报错（ambiguous overload）：C++ 默认参数只能写在前置声明或定义其中一处（getJsonValue 的 `capacity=2048` 现放在前置声明）
+- 📌 部署提示：插件日志出现 `{deprecated=true, status=ok}` / "未知响应类型" 说明服务器仍在运行旧版 JAR，需替换 `target/myplugin-1.0-SNAPSHOT.jar`（588KB shaded 版）并重启
 - 🗑️ **删除聊天模式与单玩家环境页** - 界面精简为：城市大屏（默认）/ 环境表格 / 玩家环境详情子页
 - 📋 **环境表格（融合页）** - 每玩家一行（名字+温度+湿度，最多20行与插件上限对齐）；A键/B键上下移动选中行（高亮+▲▼滚动指示）；列表末尾固定「← 返回城市大屏」行
 - 🔍 **玩家环境详情子页** - 表格内 A+B 同按进入选中玩家详情（温度/湿度/光照/风速/天气/群系），按任意键返回列表

@@ -26,7 +26,6 @@ public class HoloCommand implements CommandExecutor {
     private final Map<UUID, Long> hologramCreationTimes = new HashMap<>();
     
     private static final int MAX_HOLOGRAMS_PER_PLAYER = 20;
-    private static final long HOLOGRAM_EXPIRY_TIME = 10 * 60 * 1000;
     
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -307,7 +308,7 @@ public class K10TCPManager {
                     Bukkit.getLogger().info("[K10数字孪生] 🌐 连接目标: " + urlString);
                 }
                 
-                URL url = new URL(urlString);
+                URL url = URI.create(urlString).toURL();
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 
                 conn.setRequestMethod("POST");

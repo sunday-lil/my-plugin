@@ -16,17 +16,13 @@ import org.ljcode.myPlugin.MyPlugin;
  * 为OP管理员提供一套满附魔的下界合金盔甲，名字为"lucky"
  */
 public class Eall66Command implements CommandExecutor {
-    
-    // 插件主类实例
-    private final MyPlugin plugin;
-    
+
     /**
      * 构造函数，初始化Eall66命令处理器
-     * 
+     *
      * @param plugin 插件主类实例
      */
     public Eall66Command(MyPlugin plugin) {
-        this.plugin = plugin;
     }
     
     /**
@@ -138,6 +134,9 @@ public class Eall66Command implements CommandExecutor {
                     meta.addEnchant(Enchantment.THORNS, 3, true);
                     meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+                    break;
+
+                default:
                     break;
             }
             

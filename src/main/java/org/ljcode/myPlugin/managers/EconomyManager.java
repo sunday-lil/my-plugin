@@ -107,7 +107,7 @@ public class EconomyManager {
         return balances.entrySet().stream()
                 .sorted(Map.Entry.<UUID, Double>comparingByValue().reversed())
                 .limit(limit)
-                .collect(LinkedHashMap::new, (map, entry) -> map.put(entry.getKey(), entry.getValue()), Map::putAll);
+                .collect(() -> new LinkedHashMap<>(), (map, entry) -> map.put(entry.getKey(), entry.getValue()), (map1, map2) -> map1.putAll(map2));
     }
     
     public void setBalance(Player player, double amount) {

@@ -10,12 +10,10 @@ import org.ljcode.myPlugin.MyPlugin;
 import org.ljcode.myPlugin.managers.BankManager;
 
 public class BankCommand implements CommandExecutor {
-    
-    private final MyPlugin plugin;
+
     private final BankManager bankManager;
-    
+
     public BankCommand(MyPlugin plugin) {
-        this.plugin = plugin;
         this.bankManager = plugin.getBankManager();
     }
     

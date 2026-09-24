@@ -1,6 +1,5 @@
 package org.ljcode.myPlugin.listeners;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -23,13 +22,10 @@ import java.util.Collection;
  * 如果背包已满，物品将掉落在玩家脚下并发送提示消息
  */
 public class BlockBreakListener implements Listener {
-    
-    private final MyPlugin plugin;
-    
+
     public BlockBreakListener(MyPlugin plugin) {
-        this.plugin = plugin;
     }
-    
+
     /**
      * 处理方块破坏事件
      * 取消默认掉落，将掉落物直接放入玩家背包
@@ -121,6 +117,7 @@ public class BlockBreakListener implements Listener {
      * @param player 玩家对象
      * @param message 要发送的消息
      */
+    @SuppressWarnings("deprecation")
     private void sendActionBarMessage(Player player, String message) {
         try {
             // 使用Spigot API发送动作栏消息

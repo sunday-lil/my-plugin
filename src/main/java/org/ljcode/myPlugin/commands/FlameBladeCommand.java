@@ -2,6 +2,7 @@ package org.ljcode.myPlugin.commands;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.command.Command;
@@ -10,6 +11,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -100,7 +102,7 @@ public class FlameBladeCommand implements CommandExecutor {
             meta.setDisplayName(flameBladeDisplayName);
             
             // 遍历所有可用的附魔类型，将兼容的附魔添加到最大等级
-            for (Enchantment enchantment : Enchantment.values()) {
+            for (Enchantment enchantment : Registry.ENCHANTMENT) {
                 // 检查当前附魔是否可以应用到钻石剑上
                 if (enchantment.canEnchantItem(flameBlade)) {
                     // 获取该附魔的最大允许等级
@@ -115,7 +117,8 @@ public class FlameBladeCommand implements CommandExecutor {
                 UUID.randomUUID(),              // 随机生成唯一ID
                 "generic.attack_damage",        // 属性名称
                 extraDamage,                    // 伤害增加值
-                AttributeModifier.Operation.ADD_NUMBER  // 操作类型：直接相加
+                AttributeModifier.Operation.ADD_NUMBER,  // 操作类型：直接相加
+                EquipmentSlotGroup.ANY          // 适用于任意装备槽位
             );
             // 将伤害修饰符添加到物品的攻击伤害属性上
             meta.addAttributeModifier(Attribute.GENERIC_ATTACK_DAMAGE, damageModifier);

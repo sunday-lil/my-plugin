@@ -77,6 +77,7 @@ public class AnnouncementManager {
     /**
      * 发送动作栏消息给所有玩家
      */
+    @SuppressWarnings("deprecation")
     public void sendActionBarAnnouncement(String message) {
         String processedMessage = processPlaceholders(null, message);
         processedMessage = applyColorCodes(processedMessage);
@@ -90,6 +91,7 @@ public class AnnouncementManager {
     /**
      * 发送动作栏消息给指定玩家
      */
+    @SuppressWarnings("deprecation")
     public void sendActionBarAnnouncement(Player player, String message) {
         String processedMessage = processPlaceholders(player, message);
         processedMessage = applyColorCodes(processedMessage);
@@ -379,7 +381,7 @@ public class AnnouncementManager {
             linkComponent.setColor(net.md_5.bungee.api.ChatColor.AQUA);
             linkComponent.setUnderlined(true);
             linkComponent.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, fullUrl));
-            linkComponent.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("点击打开链接: " + fullUrl).create()));
+            linkComponent.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(new ComponentBuilder("点击打开链接: " + fullUrl).create())));
             components.add(linkComponent);
             
             lastEnd = matcher.end();

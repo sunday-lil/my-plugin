@@ -7,7 +7,6 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.ljcode.myPlugin.MyPlugin;
-import org.ljcode.myPlugin.managers.TeleportManager;
 
 public class TeleportRequestCommand implements CommandExecutor {
     

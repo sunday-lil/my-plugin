@@ -16,17 +16,13 @@ import org.ljcode.myPlugin.MyPlugin;
  * 为OP管理员提供一套满附魔的下界合金工具，名字为"lucky"
  */
 public class Eall22Command implements CommandExecutor {
-    
-    // 插件主类实例
-    private final MyPlugin plugin;
-    
+
     /**
      * 构造函数，初始化Eall22命令处理器
-     * 
+     *
      * @param plugin 插件主类实例
      */
     public Eall22Command(MyPlugin plugin) {
-        this.plugin = plugin;
     }
     
     /**
@@ -139,6 +135,9 @@ public class Eall22Command implements CommandExecutor {
                     meta.addEnchant(Enchantment.SILK_TOUCH, 1, true);
                     meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+                    break;
+
+                default:
                     break;
             }
             

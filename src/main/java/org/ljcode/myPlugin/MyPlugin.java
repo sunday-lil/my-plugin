@@ -2,7 +2,6 @@ package org.ljcode.myPlugin;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.ljcode.myPlugin.commands.*;
-import org.ljcode.myPlugin.gui.ShopGUI;
 import org.ljcode.myPlugin.managers.*;
 import org.ljcode.myPlugin.listeners.*;
 import org.ljcode.myPlugin.listeners.ProfanityFilterListener;

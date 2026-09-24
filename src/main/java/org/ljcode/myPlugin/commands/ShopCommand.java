@@ -8,12 +8,10 @@ import org.ljcode.myPlugin.MyPlugin;
 import org.ljcode.myPlugin.gui.ShopGUI;
 
 public class ShopCommand implements CommandExecutor {
-    
-    private final MyPlugin plugin;
+
     private final ShopGUI shopGUI;
-    
+
     public ShopCommand(MyPlugin plugin) {
-        this.plugin = plugin;
         this.shopGUI = new ShopGUI(plugin);
     }
     

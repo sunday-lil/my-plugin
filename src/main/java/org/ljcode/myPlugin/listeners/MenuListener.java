@@ -3,6 +3,7 @@ package org.ljcode.myPlugin.listeners;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -62,7 +63,7 @@ public class MenuListener implements Listener {
         MenuCommand menuCommand = getMenuCommand();
         
         if (slot == 13 && clickedItem.getType() == Material.ENCHANTED_GOLDEN_APPLE) {
-            player.setHealth(player.getMaxHealth());
+            player.setHealth(player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
             player.setFoodLevel(20);
             player.setFireTicks(0);
             player.sendMessage(ChatColor.GREEN + "✓ 你已恢复满状态！");

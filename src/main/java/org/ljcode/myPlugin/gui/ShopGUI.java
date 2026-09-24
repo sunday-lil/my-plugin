@@ -2,7 +2,6 @@ package org.ljcode.myPlugin.gui;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -15,14 +14,12 @@ import java.util.List;
 import java.util.Map;
 
 public class ShopGUI {
-    
-    private final MyPlugin plugin;
+
     private final ShopManager shopManager;
     private final String GUI_TITLE = "§6§l自助商店";
     private final int GUI_SIZE = 9;
-    
+
     public ShopGUI(MyPlugin plugin) {
-        this.plugin = plugin;
         this.shopManager = plugin.getShopManager();
     }
     

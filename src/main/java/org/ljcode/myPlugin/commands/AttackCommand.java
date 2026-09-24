@@ -9,13 +9,10 @@ import org.bukkit.entity.Player;
 import org.ljcode.myPlugin.MyPlugin;
 
 public class AttackCommand implements CommandExecutor {
-    
-    private final MyPlugin plugin;
-    
+
     public AttackCommand(MyPlugin plugin) {
-        this.plugin = plugin;
     }
-    
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {

@@ -403,10 +403,7 @@ public class JoinMessageListener implements Listener {
             Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, 
             Color.BLUE, Color.PURPLE, Color.FUCHSIA, Color.WHITE, Color.AQUA
         };
-        
-        // 随机确定选择的颜色数量（1-3个）
-        int count = 1 + random.nextInt(3);
-        
+
         // 随机选择一个颜色并返回单元素列表
         return List.of(colors[random.nextInt(colors.length)]);
     }

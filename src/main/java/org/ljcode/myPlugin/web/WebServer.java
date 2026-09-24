@@ -2,6 +2,7 @@ package org.ljcode.myPlugin.web;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 import fi.iki.elonen.NanoHTTPD;
 import org.ljcode.myPlugin.MyPlugin;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -206,7 +207,8 @@ public class WebServer extends NanoHTTPD {
         // 2. 可选token检查（未配置token时跳过）
         String requiredToken = plugin.getConfig().getString("web.api-token", "");
         if (requiredToken != null && !requiredToken.isEmpty()) {
-            String provided = session.getParms().get("token");
+            java.util.List<String> tokenValues = session.getParameters().get("token");
+            String provided = (tokenValues != null && !tokenValues.isEmpty()) ? tokenValues.get(0) : null;
             if (provided == null) {
                 provided = session.getHeaders().get("x-api-token");
             }
@@ -265,10 +267,17 @@ public class WebServer extends NanoHTTPD {
                 postData = java.nio.file.Files.readString(tempFile.toPath());
             } else {
                 // 尝试从参数获取数据
-                java.util.Map<String, String> parms = session.getParms();
-                for (String value : parms.values()) {
-                    if (value.startsWith("{") && value.endsWith("}")) { // 可能是JSON数据
-                        postData = value;
+                java.util.Map<String, java.util.List<String>> parms = session.getParameters();
+                for (java.util.List<String> valueList : parms.values()) {
+                    boolean found = false;
+                    for (String value : valueList) {
+                        if (value.startsWith("{") && value.endsWith("}")) { // 可能是JSON数据
+                            postData = value;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
                         break;
                     }
                 }
@@ -299,19 +308,26 @@ public class WebServer extends NanoHTTPD {
             postData = postData.trim();
             if (!postData.startsWith("{") && !postData.endsWith("}")) {
                 // 如果参数看起来像URL编码的JSON，检查参数键
-                java.util.Map<String, String> parms = session.getParms();
+                java.util.Map<String, java.util.List<String>> parms = session.getParameters();
                 if (!parms.isEmpty()) {
                     // 检查是否有类似JSON的内容
-                    for (String value : parms.values()) {
-                        if (value.startsWith("{") && value.endsWith("}")) {
-                            postData = value;
+                    for (java.util.List<String> valueList : parms.values()) {
+                        boolean found = false;
+                        for (String value : valueList) {
+                            if (value.startsWith("{") && value.endsWith("}")) {
+                                postData = value;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) {
                             break;
                         }
                     }
                 }
             }
 
-            Map<String, Object> configMap = gson.fromJson(postData, Map.class);
+            Map<String, Object> configMap = gson.fromJson(postData, new TypeToken<Map<String, Object>>(){}.getType());
 
             // 保存配置到config.yml
             File configFile = new File(plugin.getDataFolder(), "config.yml");

@@ -9,12 +9,10 @@ import org.ljcode.myPlugin.MyPlugin;
 import org.ljcode.myPlugin.listeners.HelpMessageListener;
 
 public class HelpCommand implements CommandExecutor {
-    
-    private final MyPlugin plugin;
+
     private final HelpMessageListener helpMessageListener;
-    
+
     public HelpCommand(MyPlugin plugin) {
-        this.plugin = plugin;
         this.helpMessageListener = new HelpMessageListener(plugin);
     }
     

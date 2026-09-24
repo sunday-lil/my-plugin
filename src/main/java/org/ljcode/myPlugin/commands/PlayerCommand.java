@@ -3,6 +3,7 @@ package org.ljcode.myPlugin.commands;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -10,11 +11,8 @@ import org.bukkit.entity.Player;
 import org.ljcode.myPlugin.MyPlugin;
 
 public class PlayerCommand implements CommandExecutor {
-    
-    private final MyPlugin plugin;
-    
+
     public PlayerCommand(MyPlugin plugin) {
-        this.plugin = plugin;
     }
     
     @Override
@@ -105,7 +103,7 @@ public class PlayerCommand implements CommandExecutor {
     }
     
     private boolean handleHeal(CommandSender sender, Player target) {
-        target.setHealth(target.getMaxHealth());
+        target.setHealth(target.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
         target.setFoodLevel(20);
         target.setFireTicks(0);
         
@@ -140,10 +138,11 @@ public class PlayerCommand implements CommandExecutor {
         GameMode gameMode;
         try {
             int modeInt = Integer.parseInt(modeStr);
-            gameMode = GameMode.getByValue(modeInt);
-            if (gameMode == null) {
+            GameMode[] modes = GameMode.values();
+            if (modeInt < 0 || modeInt >= modes.length) {
                 throw new NumberFormatException();
             }
+            gameMode = modes[modeInt];
         } catch (NumberFormatException e) {
             sender.sendMessage(ChatColor.RED + "无效的游戏模式! 使用 0(生存), 1(创造), 2(冒险), 3(旁观)");
             return true;

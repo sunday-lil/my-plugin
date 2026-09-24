@@ -1,6 +1,7 @@
 package org.ljcode.myPlugin.commands;
 
 import org.bukkit.ChatColor;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -53,7 +54,7 @@ public class DebugInfoCommand implements CommandExecutor {
         // 玩家健康和饥饿值
         player.sendMessage(ChatColor.AQUA + "生命值: " + 
                           ChatColor.RESET + String.format("%.1f/%.1f", 
-                          player.getHealth(), player.getMaxHealth()));
+                          player.getHealth(), player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()));
         player.sendMessage(ChatColor.AQUA + "饥饿值: " + 
                           ChatColor.RESET + String.format("%d/%d", 
                           player.getFoodLevel(), 20));
@@ -92,8 +93,6 @@ public class DebugInfoCommand implements CommandExecutor {
         int afternoonEnd = plugin.getConfig().getInt("debug-info.time-segments.afternoon[1]", 18000);
         int nightStart = plugin.getConfig().getInt("debug-info.time-segments.night[0]", 18000);
         int nightEnd = plugin.getConfig().getInt("debug-info.time-segments.night[1]", 23000);
-        int lateNightStart = plugin.getConfig().getInt("debug-info.time-segments.late-night[0]", 23000);
-        int lateNightEnd = plugin.getConfig().getInt("debug-info.time-segments.late-night[1]", 24000);
         
         if (time >= dawnStart && time < dawnEnd) {
             return plugin.getConfig().getString("debug-info.time-segments.dawn-label", "黎明");

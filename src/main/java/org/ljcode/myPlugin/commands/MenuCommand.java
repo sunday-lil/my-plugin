@@ -282,22 +282,7 @@ public class MenuCommand implements CommandExecutor {
         item.setItemMeta(meta);
         return item;
     }
-    
-    private ItemStack createMenuItem(Material material, String name, String lore, String command) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        
-        meta.setDisplayName(name);
-        
-        List<String> loreList = new ArrayList<>();
-        loreList.add(lore);
-        loreList.add("§8命令: /" + command);
-        meta.setLore(loreList);
-        
-        item.setItemMeta(meta);
-        return item;
-    }
-    
+
     private ItemStack createBackItem() {
         ItemStack item = new ItemStack(Material.ARROW);
         ItemMeta meta = item.getItemMeta();

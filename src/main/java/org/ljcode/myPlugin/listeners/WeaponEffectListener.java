@@ -7,7 +7,6 @@ import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -30,7 +29,6 @@ public class WeaponEffectListener implements Listener {
     private boolean isFlameBladeEnabled;      // 是否启用火焰刀功能
     private String flameBladeDisplayName;     // 火焰刀的显示名称
     private int magmaDuration;                // 岩浆持续时间（秒）
-    private double extraDamage;               // 火焰刀的额外基础伤害
     
     /**
      * 构造函数，初始化武器效果监听器
@@ -59,9 +57,6 @@ public class WeaponEffectListener implements Listener {
         
         // 从配置文件读取岩浆持续时间
         magmaDuration = config.getInt("special-items.flame-blade.magma-duration", 3);
-        
-        // 从配置文件读取火焰刀额外伤害值
-        extraDamage = config.getDouble("special-items.flame-blade.extra-damage", 100.0);
     }
     
     /**

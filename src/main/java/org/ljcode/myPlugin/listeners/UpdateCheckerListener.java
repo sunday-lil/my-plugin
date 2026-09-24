@@ -1,6 +1,5 @@
 package org.ljcode.myPlugin.listeners;
 
-import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -10,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.util.concurrent.CompletableFuture;
 
@@ -31,7 +31,7 @@ public class UpdateCheckerListener implements Listener {
             try {
                 // 模拟从 BuiltByBit API 获取最新版本
                 // 实际实现中应该使用真实的 API 端点
-                URL url = new URL("https://api.example.com/builtbybit/plugin/version");
+                URL url = URI.create("https://api.example.com/builtbybit/plugin/version").toURL();
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
                 connection.setConnectTimeout(5000);

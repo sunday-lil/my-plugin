@@ -1,6 +1,5 @@
 package org.ljcode.myPlugin.listeners;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -10,7 +9,6 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.ljcode.myPlugin.MyPlugin;
 
 import java.util.*;
-import java.util.regex.Pattern;
 
 /**
  * 聊天提示监听器
@@ -181,7 +179,7 @@ public class ChatHintListener implements Listener {
         // 每N条消息显示一次统计
         if (history.size() % statsInterval == 0 && history.size() > 0) {
             int totalMessages = history.size();
-            int avgLength = (int) history.stream().mapToInt(String::length).average().orElse(0);
+            int avgLength = (int) history.stream().mapToInt(s -> s.length()).average().orElse(0);
             
             player.sendMessage(ChatColor.GOLD + "📊 聊天统计：");
             player.sendMessage(ChatColor.GRAY + "  总消息数：" + ChatColor.WHITE + totalMessages);

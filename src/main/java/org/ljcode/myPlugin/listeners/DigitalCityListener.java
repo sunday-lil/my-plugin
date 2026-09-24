@@ -13,11 +13,9 @@ import org.ljcode.myPlugin.MyPlugin;
 import org.ljcode.myPlugin.managers.DigitalCityManager;
 
 public class DigitalCityListener implements Listener {
-    private final MyPlugin plugin;
     private final DigitalCityManager cityManager;
 
     public DigitalCityListener(MyPlugin plugin) {
-        this.plugin = plugin;
         this.cityManager = DigitalCityManager.getInstance();
     }
 

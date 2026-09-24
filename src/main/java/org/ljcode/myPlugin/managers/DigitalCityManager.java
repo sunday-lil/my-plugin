@@ -41,7 +41,6 @@ public class DigitalCityManager {
 
     private String cityStatus = "NORMAL";
     private String currentWeather = "clear";
-    private long serverUptime = 0;
     private Date cityFoundedDate;
     private int peakPlayersToday = 0;
 
@@ -217,10 +216,10 @@ public class DigitalCityManager {
         biomeDistribution.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
             String biome = player.getLocation().getBlock().getBiome().name();
-            biomeDistribution.merge(biome, 1, Integer::sum);
+            biomeDistribution.merge(biome, 1, (a, b) -> Integer.sum(a, b));
 
             String regionKey = getRegionKey(player.getLocation());
-            activityHeatmap.merge(regionKey, 1, Integer::sum);
+            activityHeatmap.merge(regionKey, 1, (a, b) -> Integer.sum(a, b));
         }
 
         Map<String, Object> detailedStats = new HashMap<>();
@@ -558,7 +557,7 @@ public class DigitalCityManager {
         }
 
         public void recordActivity(String activityType) {
-            activities.merge(activityType, 1, Integer::sum);
+            activities.merge(activityType, 1, (a, b) -> Integer.sum(a, b));
         }
 
         public String getPlayerName() { return playerName; }

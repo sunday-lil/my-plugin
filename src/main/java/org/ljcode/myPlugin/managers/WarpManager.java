@@ -3,7 +3,6 @@ package org.ljcode.myPlugin.managers;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
 import org.ljcode.myPlugin.MyPlugin;
 
 import java.io.File;

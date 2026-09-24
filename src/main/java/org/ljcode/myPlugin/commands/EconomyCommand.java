@@ -7,7 +7,6 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.ljcode.myPlugin.MyPlugin;
-import org.ljcode.myPlugin.managers.BankManager;
 import org.ljcode.myPlugin.managers.EconomyManager;
 
 import java.text.DecimalFormat;
@@ -16,12 +15,10 @@ import java.util.UUID;
 
 public class EconomyCommand implements CommandExecutor {
     
-    private final MyPlugin plugin;
     private final EconomyManager economyManager;
     private final DecimalFormat decimalFormat;
-    
+
     public EconomyCommand(MyPlugin plugin) {
-        this.plugin = plugin;
         this.economyManager = plugin.getEconomyManager();
         this.decimalFormat = new DecimalFormat("#,##0.00");
     }

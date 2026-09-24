@@ -6,7 +6,6 @@ import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -463,7 +462,7 @@ public class EnvironmentDataCalculator {
                     if (type != Material.AIR && type != Material.CAVE_AIR && type != Material.VOID_AIR) {
                         totalBlocks++;
                         String category = categorizeMaterial(type);
-                        resourceCounts.merge(category, 1, Integer::sum);
+                        resourceCounts.merge(category, 1, (a, b) -> Integer.sum(a, b));
                     }
                 }
             }

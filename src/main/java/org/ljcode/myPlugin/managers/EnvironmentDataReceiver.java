@@ -114,6 +114,7 @@ public class EnvironmentDataReceiver {
      * 处理数据更新响应
      * @param data 响应数据
      */
+    @SuppressWarnings("unchecked")
     private void handleDataUpdate(Map<String, Object> data) {
         String updateType = (String) data.getOrDefault("update_type", "general");
         Map<String, Object> updateData = (Map<String, Object>) data.get("data");
@@ -152,6 +153,7 @@ public class EnvironmentDataReceiver {
      * 处理状态响应
      * @param data 响应数据
      */
+    @SuppressWarnings("unchecked")
     private void handleStatus(Map<String, Object> data) {
         String status = (String) data.getOrDefault("status", "unknown");
         Map<String, Object> statusData = (Map<String, Object>) data.get("status_data");
@@ -168,6 +170,7 @@ public class EnvironmentDataReceiver {
      * 处理命令响应
      * @param data 响应数据
      */
+    @SuppressWarnings("unchecked")
     private void handleCommand(Map<String, Object> data) {
         String command = (String) data.getOrDefault("command", "");
         Map<String, Object> params = (Map<String, Object>) data.get("params");

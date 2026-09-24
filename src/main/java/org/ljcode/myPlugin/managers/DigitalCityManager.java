@@ -40,7 +40,6 @@ public class DigitalCityManager {
     private final Map<String, Integer> activityHeatmap = new ConcurrentHashMap<>();
 
     private String cityStatus = "NORMAL";
-    private String currentWeather = "clear";
     private Date cityFoundedDate;
     private int peakPlayersToday = 0;
 
@@ -320,7 +319,6 @@ public class DigitalCityManager {
     }
 
     public void recordWeatherChange(String weather) {
-        this.currentWeather = weather;
         addCityEvent("WEATHER_CHANGE", "环境", "天气变化: " + translateWeather(weather), 0x44DDFF);
     }
 

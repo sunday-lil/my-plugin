@@ -15,9 +15,8 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.NamespacedKey;
 import org.ljcode.myPlugin.MyPlugin;
-
-import java.util.UUID;
 
 /**
  * 火焰刀命令处理器
@@ -114,8 +113,7 @@ public class FlameBladeCommand implements CommandExecutor {
             
             // 创建属性修饰符以增加基础攻击伤害
             AttributeModifier damageModifier = new AttributeModifier(
-                UUID.randomUUID(),              // 随机生成唯一ID
-                "generic.attack_damage",        // 属性名称
+                new NamespacedKey(plugin, "flame_blade_damage"),  // 唯一标识键（1.21 起以 key 标识属性修饰符）
                 extraDamage,                    // 伤害增加值
                 AttributeModifier.Operation.ADD_NUMBER,  // 操作类型：直接相加
                 EquipmentSlotGroup.ANY          // 适用于任意装备槽位

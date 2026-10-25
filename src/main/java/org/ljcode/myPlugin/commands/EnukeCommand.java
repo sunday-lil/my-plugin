@@ -14,7 +14,10 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 import org.ljcode.myPlugin.MyPlugin;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 
 /**
  * 核弹法阵命令处理器
@@ -24,13 +27,15 @@ public class EnukeCommand implements CommandExecutor {
 
     private final MyPlugin plugin;
     private final Random random;
+    private final Map<UUID, Long> cooldowns = new HashMap<>();
+    private static final long COOLDOWN_MS = 60_000L;
 
     // 法阵配置参数
     private final double CIRCLE_RADIUS = 15.0;      // 法阵半径
-    private final int PARTICLE_COUNT = 100;        // 粒子数量  
-    private final int TNT_COUNT = 10;              // TNT数量
+    private final int PARTICLE_COUNT = 48;          // 粒子数量（降低单 tick 发包量）
+    private final int TNT_COUNT = 6;                // TNT数量
     private final double TNT_SPAWN_RADIUS = 14.0;   // TNT生成半径
-    private final int EFFECT_DURATION = 100;       // 特效持续时间(ticks)
+    private final int EFFECT_DURATION = 100;        // 特效持续时间(ticks)
     private final double ROTATION_SPEED = 0.05;     // 旋转速度
 
     /**
@@ -67,6 +72,15 @@ public class EnukeCommand implements CommandExecutor {
             player.sendMessage(ChatColor.RED + "你没有权限使用此命令！");
             return true;
         }
+
+        long now = System.currentTimeMillis();
+        Long last = cooldowns.get(player.getUniqueId());
+        if (last != null && now - last < COOLDOWN_MS) {
+            player.sendMessage(ChatColor.RED + "核弹法阵冷却中，请等待 "
+                    + ((COOLDOWN_MS - (now - last)) / 1000 + 1) + " 秒");
+            return true;
+        }
+        cooldowns.put(player.getUniqueId(), now);
 
         // 发送开始消息
         player.sendMessage(ChatColor.RED + "⚠ " + ChatColor.YELLOW + "核弹法阵启动中...");

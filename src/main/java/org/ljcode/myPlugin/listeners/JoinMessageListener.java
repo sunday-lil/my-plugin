@@ -16,9 +16,15 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.ljcode.myPlugin.MyPlugin;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 玩家加入/退出事件监听器
@@ -32,6 +38,12 @@ public class JoinMessageListener implements Listener {
     
     // 随机数生成器，用于生成随机的烟花效果等
     private final Random random;
+
+    // 真实统计（按天重置），避免 %join_count% 等占位符返回随机假数据
+    private final long serverStartTime = System.currentTimeMillis();
+    private final AtomicInteger todayJoinCount = new AtomicInteger();
+    private final Set<UUID> todayPlayers = ConcurrentHashMap.newKeySet();
+    private LocalDate statsDate = LocalDate.now();
     
     /**
      * 构造函数，初始化加入消息监听器
@@ -55,6 +67,10 @@ public class JoinMessageListener implements Listener {
         Player player = event.getPlayer();
         
         try {
+            rollDailyStats();
+            todayJoinCount.incrementAndGet();
+            todayPlayers.add(player.getUniqueId());
+
             // 取消默认的加入消息，使用自定义消息系统
             event.setJoinMessage(null);
             
@@ -84,8 +100,7 @@ public class JoinMessageListener implements Listener {
                 spawnWelcomeFireworks(player);
             }
             
-            // 发送功能使用指南
-            sendHelpGuide(player);
+            // 功能指南由 HelpMessageListener 统一发送，避免进服收到两份重复指南
             
         } catch (Exception e) {
             // 记录错误日志
@@ -191,9 +206,11 @@ public class JoinMessageListener implements Listener {
                 // 替换倒计时占位符
                 String currentText = actionBarText.replace("%count%", String.valueOf(maxCount - count));
                 
-                // 使用标题API显示在屏幕底部（模拟动作栏效果）
-                // 参数：主标题、副标题、淡入、停留、淡出时间
-                player.sendTitle("", ChatColor.translateAlternateColorCodes('&', currentText), 0, 20, 0);
+                // 使用真正的动作栏 API，避免覆盖欢迎标题
+                player.spigot().sendMessage(
+                        net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
+                        net.md_5.bungee.api.chat.TextComponent.fromLegacyText(
+                                ChatColor.translateAlternateColorCodes('&', currentText)));
                 
                 count++; // 增加计数
             }
@@ -341,7 +358,7 @@ public class JoinMessageListener implements Listener {
         Location location = player.getLocation();
         
         // 获取玩家游戏模式
-        String gamemode = player.getGameMode().toString().toLowerCase();
+        String gamemode = player.getGameMode().toString().toLowerCase(Locale.ROOT);
         
         // 获取世界时间（转换为12小时制）
         long worldTime = player.getWorld().getTime();
@@ -398,14 +415,21 @@ public class JoinMessageListener implements Listener {
      * @return 包含随机选择颜色的列表
      */
     private List<Color> getRandomColors() {
-        // 定义可用的颜色数组
-        Color[] colors = {
-            Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, 
-            Color.BLUE, Color.PURPLE, Color.FUCHSIA, Color.WHITE, Color.AQUA
-        };
-
-        // 随机选择一个颜色并返回单元素列表
-        return List.of(colors[random.nextInt(colors.length)]);
+        List<String> configured = plugin.getConfig().getStringList("join-message.fireworks.preferred-colors");
+        List<Color> available = new java.util.ArrayList<>();
+        for (String name : configured) {
+            try {
+                available.add(org.bukkit.DyeColor.valueOf(name.toUpperCase(Locale.ROOT)).getFireworkColor());
+            } catch (IllegalArgumentException ignored) {
+                // 忽略配置里的无效颜色名
+            }
+        }
+        if (available.isEmpty()) {
+            available.addAll(List.of(
+                    Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN,
+                    Color.BLUE, Color.PURPLE, Color.FUCHSIA, Color.WHITE, Color.AQUA));
+        }
+        return List.of(available.get(random.nextInt(available.size())));
     }
     
     /**
@@ -417,171 +441,41 @@ public class JoinMessageListener implements Listener {
      */
     private int getPlayerPing(Player player) {
         try {
-            // 使用反射获取玩家的ping值
-            Object entityPlayer = player.getClass().getMethod("getHandle").invoke(player);
-            return (int) entityPlayer.getClass().getField("ping").get(entityPlayer);
+            return player.getPing();
         } catch (Exception e) {
-            // 如果无法获取ping值，返回默认值0
-            return 0;
+            return plugin.getConfig().getInt("debug-info.default-ping", 100);
+        }
+    }
+    
+    private void rollDailyStats() {
+        LocalDate today = LocalDate.now();
+        if (!today.equals(statsDate)) {
+            statsDate = today;
+            todayJoinCount.set(0);
+            todayPlayers.clear();
         }
     }
     
     /**
-     * 获取今日加入次数
-     * 模拟获取今日玩家加入次数（实际项目中需要持久化存储）
-     * 
-     * @return 今日加入次数
+     * 获取今日加入次数（真实计数，按天重置）。
      */
     private String getTodayJoinCount() {
-        // 这里应该从数据库或文件中获取实际数据
-        // 目前返回一个模拟值
-        return String.valueOf(random.nextInt(50) + 1);
+        return String.valueOf(todayJoinCount.get());
     }
     
     /**
-     * 获取今日累计玩家数
-     * 模拟获取今日累计在线玩家数量（实际项目中需要持久化存储）
-     * 
-     * @return 今日累计玩家数
+     * 获取今日累计去重玩家数（真实计数，按天重置）。
      */
     private String getTotalPlayersToday() {
-        // 这里应该从数据库或文件中获取实际数据
-        // 目前返回一个模拟值
-        return String.valueOf(random.nextInt(100) + 1);
+        return String.valueOf(todayPlayers.size());
     }
     
     /**
-     * 获取服务器运行时间
-     * 计算服务器启动后的运行时间（小时）
-     * 
-     * @return 服务器运行时间（小时）
+     * 获取服务器运行时间（小时）。
      */
     private String getServerUptime() {
-        // 获取服务器启动时间
-        long startTime = getServerStartTime();
-        long currentTime = System.currentTimeMillis();
-        
-        // 计算运行时间（小时）
-        long uptimeHours = (currentTime - startTime) / (1000 * 60 * 60);
-        
+        long uptimeHours = (System.currentTimeMillis() - serverStartTime) / (1000 * 60 * 60);
         return String.valueOf(uptimeHours);
     }
     
-    /**
-     * 获取服务器启动时间
-     * 如果插件没有提供启动时间，则使用当前时间减去一个随机值
-     * 
-     * @return 服务器启动时间戳
-     */
-    private long getServerStartTime() {
-        // 如果插件没有记录启动时间，则使用当前时间减去一个随机值（1-24小时）
-        return System.currentTimeMillis() - (random.nextInt(24) + 1) * 60 * 60 * 1000;
-    }
-    
-    /**
-     * 向玩家发送功能使用指南
-     * 根据配置决定是否发送，展示插件的主要功能和使用方法
-     * 
-     * @param player 加入的玩家
-     */
-    private void sendHelpGuide(Player player) {
-        // 检查是否启用功能指南
-        if (!plugin.getConfig().getBoolean("join-message.send-help-guide-on-join", true)) {
-            return;
-        }
-        
-        // 延迟发送，避免与其他欢迎消息冲突
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                // 检查玩家是否仍然在线
-                if (!player.isOnline()) {
-                    return;
-                }
-                
-                // 发送功能指南标题
-                player.sendMessage("");
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6&l========== &e&l服务器功能指南 &6&l=========="));
-                player.sendMessage("");
-                
-                // 传送系统
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a&l🚀 传送系统"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /etp <玩家> &f- 传送到其他玩家"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /etpa <玩家> &f- 请求传送到玩家"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /ehome [名称] &f- 传送到家园"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /esethome [名称] &f- 设置家园"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /ewarp <名称> &f- 传送到传送点"));
-                player.sendMessage("");
-                
-                // 经济系统
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e&l💰 经济系统"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /emoney [玩家] &f- 查看余额"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /epay <玩家> <金额> &f- 转账给其他玩家"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /ebalancetop &f- 查看财富排行榜"));
-                player.sendMessage("");
-                
-                // 银行系统
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&b&l🏦 银行系统"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /bank balance &f- 查看银行余额"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /bank deposit <金额> &f- 存款"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /bank withdraw <金额> &f- 取款"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /bank transfer <玩家> <金额> &f- 转账"));
-                player.sendMessage("");
-                
-                // 玩家管理
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&d&l🎮 玩家管理"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /efly [玩家] &f- 切换飞行模式"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /egod [玩家] &f- 切换上帝模式"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /eheal [玩家] &f- 治疗玩家"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /efeed [玩家] &f- 喂食玩家"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /egm <0|1|2|3> [玩家] &f- 切换游戏模式"));
-                player.sendMessage("");
-                
-                // 商店系统
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c&l🛒 商店系统"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /shop &f- 打开自助商店"));
-                player.sendMessage("");
-                
-                // 菜单系统
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&f&l📋 控制中心"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /menu &f- 打开超级控制中心菜单"));
-                player.sendMessage("");
-                
-                // 悬浮文字
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6&l🌟 悬浮文字"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /holo create <内容> &f- 创建悬浮文字"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /holo online <内容> &f- 动态在线人数"));
-                player.sendMessage("");
-                
-                // 特殊功能
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&5&l🎯 特殊功能"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /eflameblade &f- 获取火焰刀"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /edebug &f- 显示调试信息"));
-                player.sendMessage("");
-                
-                // 公告系统
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&3&l📢 公告系统"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /ean <消息> &f- 发送聊天公告"));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  /eanactionbar <消息> &f- 发送动作栏公告"));
-                player.sendMessage("");
-                
-                // 帮助命令
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  输入 &f/ehelp &7查看更多命令帮助"));
-                player.sendMessage("");
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6&l===================================="));
-                player.sendMessage("");
-                
-                // 发送提示信息
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        if (!player.isOnline()) {
-                            return;
-                        }
-                        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e💡 提示：使用 &f/menu &e打开控制中心快速访问所有功能！"));
-                    }
-                }.runTaskLater(plugin, 40L); // 2秒后发送提示
-            }
-        }.runTaskLater(plugin, 60L); // 3秒后发送指南
-    }
 }

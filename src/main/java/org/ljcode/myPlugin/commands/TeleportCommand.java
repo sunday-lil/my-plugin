@@ -49,11 +49,10 @@ public class TeleportCommand implements CommandExecutor {
             }
         }
         
-        // 保存当前位置
-        plugin.getTeleportManager().setLastLocation(player, player.getLocation());
-        
-        // 传送玩家
-        player.teleport(target.getLocation());
+        // 保存当前位置并传送（统一冷却/安全检查）
+        if (!plugin.getTeleportManager().teleport(player, target.getLocation())) {
+            return true;
+        }
         player.sendMessage(ChatColor.GREEN + "已传送到玩家 " + target.getName());
         
         return true;

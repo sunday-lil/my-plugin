@@ -25,6 +25,11 @@ public class DebugInfoCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!player.hasPermission("essentialsx.debug")) {
+            player.sendMessage(ChatColor.RED + "你没有权限使用此命令!");
+            return true;
+        }
+        
         // 发送简化版的调试信息
         player.sendMessage(ChatColor.DARK_GRAY + "------------------- " + 
                           ChatColor.WHITE + "调试信息" + ChatColor.DARK_GRAY + " -------------------");
@@ -83,16 +88,16 @@ public class DebugInfoCommand implements CommandExecutor {
     
     private String getTimeOfDay(long time) {
         // 从配置获取时间分段定义
-        int dawnStart = plugin.getConfig().getInt("debug-info.time-segments.dawn[0]", 0);
-        int dawnEnd = plugin.getConfig().getInt("debug-info.time-segments.dawn[1]", 1000);
-        int morningStart = plugin.getConfig().getInt("debug-info.time-segments.morning[0]", 1000);
-        int morningEnd = plugin.getConfig().getInt("debug-info.time-segments.morning[1]", 6000);
-        int noonStart = plugin.getConfig().getInt("debug-info.time-segments.noon[0]", 6000);
-        int noonEnd = plugin.getConfig().getInt("debug-info.time-segments.noon[1]", 12000);
-        int afternoonStart = plugin.getConfig().getInt("debug-info.time-segments.afternoon[0]", 12000);
-        int afternoonEnd = plugin.getConfig().getInt("debug-info.time-segments.afternoon[1]", 18000);
-        int nightStart = plugin.getConfig().getInt("debug-info.time-segments.night[0]", 18000);
-        int nightEnd = plugin.getConfig().getInt("debug-info.time-segments.night[1]", 23000);
+        int dawnStart = plugin.getConfig().getInt("debug-info.time-segments.dawn.0", 0);
+        int dawnEnd = plugin.getConfig().getInt("debug-info.time-segments.dawn.1", 1000);
+        int morningStart = plugin.getConfig().getInt("debug-info.time-segments.morning.0", 1000);
+        int morningEnd = plugin.getConfig().getInt("debug-info.time-segments.morning.1", 6000);
+        int noonStart = plugin.getConfig().getInt("debug-info.time-segments.noon.0", 6000);
+        int noonEnd = plugin.getConfig().getInt("debug-info.time-segments.noon.1", 12000);
+        int afternoonStart = plugin.getConfig().getInt("debug-info.time-segments.afternoon.0", 12000);
+        int afternoonEnd = plugin.getConfig().getInt("debug-info.time-segments.afternoon.1", 18000);
+        int nightStart = plugin.getConfig().getInt("debug-info.time-segments.night.0", 18000);
+        int nightEnd = plugin.getConfig().getInt("debug-info.time-segments.night.1", 23000);
         
         if (time >= dawnStart && time < dawnEnd) {
             return plugin.getConfig().getString("debug-info.time-segments.dawn-label", "黎明");

@@ -29,15 +29,19 @@ public class AnnouncementScheduler {
             }
         };
 
-        // Run the first announcement immediately, then repeat at the specified interval
-        scheduledTask.runTaskTimer(plugin, 0, interval);
+        // 首次延迟1秒，避免启动/重载瞬间立刻广播
+        scheduledTask.runTaskTimer(plugin, 20L, interval);
     }
 
     private void sendScheduledAnnouncement() {
+        if (!plugin.getConfig().getBoolean("announcements.enabled", true)) {
+            return;
+        }
         // Get announcement types to send based on config
         List<String> messages = plugin.getConfig().getStringList("announcements.messages");
         List<String> actionBarMessages = plugin.getConfig().getStringList("announcements.actionbar-messages");
-        List<String> titleMessages = plugin.getConfig().getStringList("announcements.title-messages");
+        // title-messages 是 List<List<String>>，不能用 getStringList（会跳过嵌套列表）
+        List<?> titleMessages = plugin.getConfig().getList("announcements.title-messages");
         List<String> bossBarMessages = plugin.getConfig().getStringList("announcements.bossbar.messages");
         boolean bossBarEnabled = plugin.getConfig().getBoolean("announcements.bossbar.enabled", true);
 
@@ -70,7 +74,7 @@ public class AnnouncementScheduler {
         }
 
         // Title messages are a bit different - they come as lists of [title, subtitle]
-        if (!titleMessages.isEmpty()) {
+        if (titleMessages != null && !titleMessages.isEmpty()) {
             Object messageObj;
             if (randomOrder) {
                 messageObj = announcementManager.getRandomObject(titleMessages);

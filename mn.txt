@@ -1,5 +1,10 @@
 /*!
-Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.1
+Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.2
+v3.3.2 更新：
+1. processCityDashboardData 改为单次 16KB 解析（原每个字段重新解析 2048 字节，
+   仪表盘超过 2KB 时所有字段静默读空，大屏停止更新）
+2. handleCityEvent 的 event_type/extractJsonObject 容量提升到 16384
+3. 插件端移除固件未消费的 recent_events，仪表盘单帧保持 <2KB
 v3.3.1 修复（环境聚合报告接收失败）：
 1. handleMcEvent/handleEnvironmentSummary 改为单次16384字节大容量解析
    （旧 getJsonValue 内部 2048 字节 doc 在 10+ 玩家时 NoMemory，
@@ -159,9 +164,10 @@ void drawNotification(String line1, String line2, uint32_t color1, uint32_t colo
 void drawConfigPortalUI();
 void drawConnectingUI(int retry, String ssid);
 String getJsonValue(String data, String key, size_t capacity = 2048);
+String jsonValueToString(JsonVariant value);
 String escapeHtml(String s);
 String escapeAttr(String s);
-String extractJsonObject(String data, String key);
+String extractJsonObject(String data, String key, size_t capacity = 2048);
 void appendLog(String msg);
 void flushLogBuffer();
 void showTempStatus(String line1, String line2, uint32_t color1, uint32_t color2);
@@ -601,11 +607,21 @@ void processCityInitData(String body) {
 }
 
 void processCityDashboardData(String body) {
-    String onlinePlayersStr = getJsonValue(body, "basic_stats.online_players");
-    String maxPlayersStr = getJsonValue(body, "basic_stats.max_players");
-    String tpsStr = getJsonValue(body, "basic_stats.tps");
-    String cityStatusStr = getJsonValue(body, "basic_stats.city_status");
-    String uptimeStr = getJsonValue(body, "basic_stats.uptime_hours");
+    // v3.3.2: 一次 16KB 解析代替“每个字段重新解析 2048 字节”。
+    // 旧实现下仪表盘 body 超过 2KB 时所有字段都会静默读空，大屏停止更新。
+    DynamicJsonDocument doc(16384);
+    DeserializationError error = deserializeJson(doc, body);
+    if (error) {
+        appendLog("[城市] 仪表盘 JSON 解析失败: " + String(error.c_str()) + " 长度:" + String(body.length()));
+        return;
+    }
+
+    JsonObject basic = doc["basic_stats"].as<JsonObject>();
+    String onlinePlayersStr = jsonValueToString(basic["online_players"]);
+    String maxPlayersStr = jsonValueToString(basic["max_players"]);
+    String tpsStr = jsonValueToString(basic["tps"]);
+    String cityStatusStr = jsonValueToString(basic["city_status"]);
+    String uptimeStr = jsonValueToString(basic["uptime_hours"]);
 
     if (onlinePlayersStr != "") cityBasic.onlinePlayers = onlinePlayersStr.toInt();
     if (maxPlayersStr != "") cityBasic.maxPlayers = maxPlayersStr.toInt();
@@ -615,11 +631,12 @@ void processCityDashboardData(String body) {
 
     cityBasic.playerLoad = cityBasic.maxPlayers > 0 ? (cityBasic.onlinePlayers * 100 / cityBasic.maxPlayers) : 0;
 
-    String totalJoinedStr = getJsonValue(body, "population_stats.total_joined");
-    String totalDeathsStr = getJsonValue(body, "population_stats.total_deaths");
-    String avgSessionStr = getJsonValue(body, "population_stats.avg_session_time");
-    String peakTodayStr = getJsonValue(body, "population_stats.peak_today");
-    String householdsStr = getJsonValue(body, "population_stats.households");
+    JsonObject population = doc["population_stats"].as<JsonObject>();
+    String totalJoinedStr = jsonValueToString(population["total_joined"]);
+    String totalDeathsStr = jsonValueToString(population["total_deaths"]);
+    String avgSessionStr = jsonValueToString(population["avg_session_time"]);
+    String peakTodayStr = jsonValueToString(population["peak_today"]);
+    String householdsStr = jsonValueToString(population["households"]);
 
     if (totalJoinedStr != "") cityPopulation.totalJoined = totalJoinedStr.toInt();
     if (totalDeathsStr != "") cityPopulation.totalDeaths = totalDeathsStr.toInt();
@@ -628,11 +645,12 @@ void processCityDashboardData(String body) {
     if (householdsStr != "") cityPopulation.households = householdsStr.toInt();
     cityPopulation.currentOnline = cityBasic.onlinePlayers;
 
-    String messagesStr = getJsonValue(body, "activity_stats.messages_sent");
-    String blocksBrokenStr = getJsonValue(body, "activity_stats.blocks_broken");
-    String blocksPlacedStr = getJsonValue(body, "activity_stats.blocks_placed");
-    String activityLevelStr = getJsonValue(body, "activity_stats.activity_level");
-    String redstoneStr = getJsonValue(body, "activity_stats.redstone_changes");
+    JsonObject activity = doc["activity_stats"].as<JsonObject>();
+    String messagesStr = jsonValueToString(activity["messages_sent"]);
+    String blocksBrokenStr = jsonValueToString(activity["blocks_broken"]);
+    String blocksPlacedStr = jsonValueToString(activity["blocks_placed"]);
+    String activityLevelStr = jsonValueToString(activity["activity_level"]);
+    String redstoneStr = jsonValueToString(activity["redstone_changes"]);
 
     if (messagesStr != "") cityActivity.messagesSent = messagesStr.toInt();
     if (blocksBrokenStr != "") cityActivity.blocksBroken = blocksBrokenStr.toInt();
@@ -640,10 +658,11 @@ void processCityDashboardData(String body) {
     if (activityLevelStr != "") cityActivity.activityLevel = activityLevelStr;
     if (redstoneStr != "") cityActivity.redstoneChanges = redstoneStr.toInt();
 
-    String totalTxStr = getJsonValue(body, "economy_stats.total_transactions");
-    String totalVolStr = getJsonValue(body, "economy_stats.total_volume");
-    String bankAcctStr = getJsonValue(body, "economy_stats.active_bank_accounts");
-    String wealthStr = getJsonValue(body, "economy_stats.server_wealth");
+    JsonObject economy = doc["economy_stats"].as<JsonObject>();
+    String totalTxStr = jsonValueToString(economy["total_transactions"]);
+    String totalVolStr = jsonValueToString(economy["total_volume"]);
+    String bankAcctStr = jsonValueToString(economy["active_bank_accounts"]);
+    String wealthStr = jsonValueToString(economy["server_wealth"]);
 
     if (totalTxStr != "") cityEconomy.totalTransactions = totalTxStr.toInt();
     if (totalVolStr != "") cityEconomy.totalVolume = totalVolStr.toInt();
@@ -780,9 +799,15 @@ String getJsonValue(String data, String key, size_t capacity) {
     return "";
 }
 
+String jsonValueToString(JsonVariant value) {
+    if (value.isNull()) return "";
+    if (value.is<String>()) return value.as<String>();
+    return String(value.as<float>());
+}
+
 // 提取 JSON 对象（用于 event 字段）
-String extractJsonObject(String data, String key) {
-    DynamicJsonDocument doc(2048);
+String extractJsonObject(String data, String key, size_t capacity) {
+    DynamicJsonDocument doc(capacity);
     DeserializationError error = deserializeJson(doc, data);
     if (error) return "";
     JsonObject obj = doc[key];
@@ -921,19 +946,21 @@ void handleEnvironmentSummary(String body) {
 }
 
 void handleCityEvent(String body) {
-    String eventType = getJsonValue(body, "event_type");
+    String eventType = getJsonValue(body, "event_type", 16384);
 
     if (eventType == "CITY_INIT") {
         processCityInitData(body);
     } else if (eventType == "CITY_DASHBOARD") {
         processCityDashboardData(body);
     } else if (eventType == "CITY_EVENT") {
-        String eventData = extractJsonObject(body, "event");
+        String eventData = extractJsonObject(body, "event", 16384);
         if (eventData != "") {
             processCityEventData(eventData);
         }
     } else if (eventType == "DETAILED_STATISTICS") {
         Serial.println("[城市] 收到详细统计数据");
+    } else {
+        appendLog("[城市] 未知 event_type: " + eventType + " 长度:" + String(body.length()));
     }
 
     server.send(200, "application/json", "{\"status\":\"ok\"}");

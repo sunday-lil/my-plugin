@@ -39,6 +39,12 @@ public class ShopListener implements Listener {
         
         event.setCancelled(true);
         
+        // 只处理商店顶部 GUI；点击自己背包里的同材质物品不应触发买卖
+        if (event.getClickedInventory() == null
+                || event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
+        
         int slot = event.getSlot();
         if (slot < 0 || slot >= inventory.getSize()) {
             return;
@@ -105,11 +111,18 @@ public class ShopListener implements Listener {
         
         plugin.getEconomyManager().withdraw(player, totalPrice);
         
+        java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(itemToGive);
+        if (!leftover.isEmpty()) {
+            // 背包实际放不下：退款并恢复库存，避免“扣钱不给货”
+            plugin.getEconomyManager().deposit(player, totalPrice);
+            player.sendMessage(ChatColor.RED + "背包空间不足，购买已取消并退款!");
+            return;
+        }
+        
         if (item.getMaxStock() > 0) {
             shopManager.decreaseStock(item.getKey(), amount);
         }
         
-        player.getInventory().addItem(itemToGive);
         recordCityTransaction(totalPrice);
         player.sendMessage(ChatColor.GREEN + "成功购买 " + amount + " 个 " + formatMaterialName(item.getMaterial().name()) +
             "，花费 $" + totalPrice);
@@ -140,7 +153,7 @@ public class ShopListener implements Listener {
     private void handleSellAll(Player player, ShopManager.ShopItem item) {
         int totalAmount = 0;
         
-        for (ItemStack inventoryItem : player.getInventory().getContents()) {
+        for (ItemStack inventoryItem : player.getInventory().getStorageContents()) {
             if (inventoryItem != null && inventoryItem.getType() == item.getMaterial()) {
                 totalAmount += inventoryItem.getAmount();
             }

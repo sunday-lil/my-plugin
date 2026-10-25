@@ -38,6 +38,7 @@ public class EnvironmentDataScheduler {
     private volatile boolean isRunning;
     private long totalReports;
     private long successfulSends;
+    private long acknowledgedSends;
     private long failedSends;
     private int lastReportedPlayerCount;
 
@@ -53,6 +54,7 @@ public class EnvironmentDataScheduler {
         this.isRunning = false;
         this.totalReports = 0;
         this.successfulSends = 0;
+        this.acknowledgedSends = 0;
         this.failedSends = 0;
         this.lastReportedPlayerCount = 0;
 
@@ -237,8 +239,8 @@ public class EnvironmentDataScheduler {
 
     private boolean sendToK10(String jsonData) {
         try {
-            tcpManager.sendMessageAsync(jsonData);
-            return true;
+            // 返回“成功入队”，HTTP 实际送达由 handleK10Response 的 acknowledgedSends 统计
+            return tcpManager.sendMessageAsync(jsonData);
         } catch (Exception e) {
             Bukkit.getLogger().warning("[环境数据] 发送到K10失败: " + e.getMessage());
             return false;
@@ -263,6 +265,7 @@ public class EnvironmentDataScheduler {
         if (pendingRequests.containsKey(requestId)) {
             pendingRequests.remove(requestId);
             lastResponseTime.set(System.currentTimeMillis());
+            acknowledgedSends++;
 
             receiver.processResponse(responseData);
 
@@ -281,7 +284,8 @@ public class EnvironmentDataScheduler {
     private void logStatistics() {
         Bukkit.getLogger().info("[环境数据] ── 统计信息 ──");
         Bukkit.getLogger().info("[环境数据] 已发送聚合报告: " + totalReports + " 次");
-        Bukkit.getLogger().info("[环境数据] 成功发送: " + successfulSends);
+        Bukkit.getLogger().info("[环境数据] 成功入队: " + successfulSends);
+        Bukkit.getLogger().info("[环境数据] 收到确认: " + acknowledgedSends);
         Bukkit.getLogger().info("[环境数据] 失败发送: " + failedSends);
         Bukkit.getLogger().info("[环境数据] 报告周期: " + reportInterval + " ticks");
         Bukkit.getLogger().info("[环境数据] 待响应请求: " + pendingRequests.size());
@@ -298,7 +302,8 @@ public class EnvironmentDataScheduler {
         sb.append("§e扫描半径: §f").append(calculator.getScanRadius()).append(" 格\n");
         sb.append("§7─────────────────────────────§r\n");
         sb.append("§e已发送报告: §f").append(totalReports).append("\n");
-        sb.append("§e成功发送: §a").append(successfulSends).append("\n");
+        sb.append("§e成功入队: §a").append(successfulSends).append("\n");
+        sb.append("§e收到确认: §a").append(acknowledgedSends).append("\n");
         sb.append("§e失败发送: §c").append(failedSends).append("\n");
         sb.append("§e上次报告玩家数: §f").append(lastReportedPlayerCount).append("\n");
         sb.append("§7─────────────────────────────§r\n");

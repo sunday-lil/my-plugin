@@ -8,6 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.ljcode.myPlugin.MyPlugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 public class HoloCommand implements CommandExecutor {
     
+    private final MyPlugin plugin;
     private final Map<UUID, ArmorStand> followHolograms = new HashMap<>();
     private final Map<UUID, BukkitRunnable> followTasks = new HashMap<>();
     private final Map<UUID, ArmorStand> onlineHolograms = new HashMap<>();
@@ -26,6 +28,10 @@ public class HoloCommand implements CommandExecutor {
     private final Map<UUID, Long> hologramCreationTimes = new HashMap<>();
     
     private static final int MAX_HOLOGRAMS_PER_PLAYER = 20;
+
+    public HoloCommand(MyPlugin plugin) {
+        this.plugin = plugin;
+    }
     
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -35,6 +41,11 @@ public class HoloCommand implements CommandExecutor {
         }
         
         Player player = (Player) sender;
+        
+        if (!player.hasPermission("essentialsx.holo")) {
+            player.sendMessage(ChatColor.RED + "你没有权限使用悬浮文字命令!");
+            return true;
+        }
         
         if (args.length == 0) {
             sendHelp(player);
@@ -126,12 +137,19 @@ public class HoloCommand implements CommandExecutor {
         BukkitRunnable task = new BukkitRunnable() {
             @Override
             public void run() {
+                if (!player.isOnline() || !armorStand.isValid()) {
+                    armorStand.remove();
+                    onlineHolograms.remove(playerId);
+                    onlineTasks.remove(playerId);
+                    this.cancel();
+                    return;
+                }
                 int onlineCount = player.getServer().getOnlinePlayers().size();
                 armorStand.setCustomName(ChatColor.GREEN + "当前在线: " + ChatColor.WHITE + onlineCount + " 人");
             }
         };
         
-        task.runTaskTimer(player.getServer().getPluginManager().getPlugin("EssentialsX-Clone"), 100L, 100L);
+        task.runTaskTimer(plugin, 100L, 100L);
         onlineTasks.put(playerId, task);
         
         player.sendMessage(ChatColor.GREEN + "动态在线人数显示已创建!");
@@ -164,7 +182,7 @@ public class HoloCommand implements CommandExecutor {
             }
         };
         
-        task.runTaskTimer(player.getServer().getPluginManager().getPlugin("EssentialsX-Clone"), 1L, 1L);
+        task.runTaskTimer(plugin, 1L, 1L);
         followTasks.put(playerId, task);
         
         player.sendMessage(ChatColor.GREEN + "跟随悬浮文字已创建!");
@@ -387,5 +405,40 @@ public class HoloCommand implements CommandExecutor {
         player.sendMessage(ChatColor.YELLOW + "活跃玩家: " + ChatColor.WHITE + player.getServer().getOnlinePlayers().size());
         
         return true;
+    }
+
+    /**
+     * 玩家退出时清理其创建的所有悬浮文字与定时任务。
+     */
+    public void cleanup(Player player) {
+        UUID playerId = player.getUniqueId();
+
+        BukkitRunnable followTask = followTasks.remove(playerId);
+        if (followTask != null) {
+            followTask.cancel();
+        }
+        ArmorStand follow = followHolograms.remove(playerId);
+        if (follow != null && follow.isValid()) {
+            follow.remove();
+        }
+
+        BukkitRunnable onlineTask = onlineTasks.remove(playerId);
+        if (onlineTask != null) {
+            onlineTask.cancel();
+        }
+        ArmorStand online = onlineHolograms.remove(playerId);
+        if (online != null && online.isValid()) {
+            online.remove();
+        }
+
+        List<ArmorStand> holograms = playerHolograms.remove(playerId);
+        if (holograms != null) {
+            for (ArmorStand armorStand : holograms) {
+                hologramCreationTimes.remove(armorStand.getUniqueId());
+                if (armorStand.isValid()) {
+                    armorStand.remove();
+                }
+            }
+        }
     }
 }

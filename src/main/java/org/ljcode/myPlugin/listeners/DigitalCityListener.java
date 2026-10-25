@@ -7,15 +7,18 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.weather.ThunderChangeEvent;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.entity.Player;
 import org.ljcode.myPlugin.MyPlugin;
 import org.ljcode.myPlugin.managers.DigitalCityManager;
 
 public class DigitalCityListener implements Listener {
+    private final MyPlugin plugin;
     private final DigitalCityManager cityManager;
 
     public DigitalCityListener(MyPlugin plugin) {
+        this.plugin = plugin;
         this.cityManager = DigitalCityManager.getInstance();
     }
 
@@ -41,38 +44,37 @@ public class DigitalCityListener implements Listener {
         cityManager.recordPlayerDeath(player, deathCause);
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
-        Player player = event.getPlayer();
-        String message = event.getMessage();
-        cityManager.recordChatMessage(player, message);
+        if (!plugin.getConfig().getBoolean("digital-city.chat-tracking-enabled", true)) {
+            return;
+        }
+        cityManager.recordChatMessage(event.getPlayer(), event.getMessage());
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        Player player = event.getPlayer();
-        cityManager.recordBlockBreak(player);
+        if (!plugin.getConfig().getBoolean("digital-city.block-tracking-enabled", true)) {
+            return;
+        }
+        cityManager.recordBlockBreak(event.getPlayer());
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
-        Player player = event.getPlayer();
-        cityManager.recordBlockPlace(player);
+        if (!plugin.getConfig().getBoolean("digital-city.block-tracking-enabled", true)) {
+            return;
+        }
+        cityManager.recordBlockPlace(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onWeatherChange(WeatherChangeEvent event) {
-        if (event.toWeatherState()) {
-            String weather = event.getWorld().hasStorm() ? "storm" : "rain";
-            cityManager.recordWeatherChange(weather);
-        } else {
-            cityManager.recordWeatherChange("clear");
-        }
+        cityManager.recordWeatherChange(event.toWeatherState() ? "storm" : "clear");
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
-    public void onPlayerMove(PlayerMoveEvent event) {
-        // 可以用于更精细的位置追踪（如果需要）
-        // 目前在DigitalCityManager中定期收集位置信息
+    public void onThunderChange(ThunderChangeEvent event) {
+        cityManager.recordWeatherChange(event.toThunderState() ? "thunder" : (event.getWorld().hasStorm() ? "storm" : "clear"));
     }
 }

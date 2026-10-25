@@ -1,6 +1,9 @@
 package org.ljcode.myPlugin.managers;
 
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -9,6 +12,7 @@ import org.ljcode.myPlugin.MyPlugin;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 传送管理系统
@@ -22,6 +26,9 @@ public class TeleportManager {
     
     // 存储玩家UUID与其最后位置的映射关系，用于/back命令
     private final Map<UUID, Location> lastLocations;
+
+    // 传送冷却截止时间（毫秒）
+    private final Map<UUID, Long> cooldowns = new ConcurrentHashMap<>();
     
     // 存储玩家传送请求的映射表，键是接收请求的玩家UUID
     private final Map<UUID, TeleportRequest> teleportRequests;
@@ -61,9 +68,14 @@ public class TeleportManager {
      * 将所有玩家的最后位置数据加载到内存中
      */
     public void loadData() {
-        // 检查数据文件是否存在，如果不存在则从资源文件复制默认配置
+        // 检查数据文件是否存在，不存在则安全创建，避免缺失 JAR 资源导致启动失败
         if (!dataFile.exists()) {
-            plugin.saveResource("teleport.yml", false);
+            try {
+                dataFile.getParentFile().mkdirs();
+                dataFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Could not create teleport data file: " + e.getMessage());
+            }
         }
         
         // 检查配置文件中是否包含最后位置数据段
@@ -127,6 +139,84 @@ public class TeleportManager {
     public Location getLastLocation(Player player) {
         // 通过玩家UUID从最后位置映射表中获取位置
         return lastLocations.get(player.getUniqueId());
+    }
+
+    /**
+     * 统一传送入口：冷却、安全检查、/back 位置记录。
+     *
+     * @return 是否成功传送
+     */
+    public boolean teleport(Player player, Location destination) {
+        if (!plugin.getConfig().getBoolean("teleport.enabled", true)) {
+            player.sendMessage(ChatColor.RED + "传送系统已禁用!");
+            return false;
+        }
+        if (destination == null || destination.getWorld() == null) {
+            player.sendMessage(ChatColor.RED + "传送目标无效!");
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        long remaining = getRemainingCooldown(player, now);
+        if (remaining > 0) {
+            player.sendMessage(ChatColor.RED + "传送冷却中，请等待 " + remaining + " 秒!");
+            return false;
+        }
+
+        if (plugin.getConfig().getBoolean("teleport.safety-check", true) && !isSafeDestination(destination)) {
+            player.sendMessage(ChatColor.RED + "目标位置不安全（岩浆/火焰/仙人掌等），已取消传送!");
+            return false;
+        }
+
+        Location from = player.getLocation();
+        if (!player.teleport(destination)) {
+            player.sendMessage(ChatColor.RED + "传送失败!");
+            return false;
+        }
+
+        lastLocations.put(player.getUniqueId(), from);
+
+        int cooldown = Math.max(0, plugin.getConfig().getInt("teleport.cooldown", 5));
+        if (cooldown > 0 && !player.hasPermission("essentialsx.teleport.bypass")) {
+            cooldowns.put(player.getUniqueId(), now + cooldown * 1000L);
+        }
+        return true;
+    }
+
+    public long getRemainingCooldown(Player player, long now) {
+        if (player.hasPermission("essentialsx.teleport.bypass")) {
+            return 0;
+        }
+        Long until = cooldowns.get(player.getUniqueId());
+        if (until == null || until <= now) {
+            return 0;
+        }
+        return Math.max(1, (until - now + 999) / 1000);
+    }
+
+    public void clearCooldown(Player player) {
+        cooldowns.remove(player.getUniqueId());
+    }
+
+    private boolean isSafeDestination(Location destination) {
+        Block feet = destination.getBlock();
+        Block head = feet.getRelative(0, 1, 0);
+        Block below = feet.getRelative(0, -1, 0);
+
+        return !isHazard(feet.getType())
+                && !isHazard(head.getType())
+                && !isHazard(below.getType());
+    }
+
+    private boolean isHazard(Material type) {
+        return type == Material.LAVA
+                || type == Material.FIRE
+                || type == Material.SOUL_FIRE
+                || type == Material.MAGMA_BLOCK
+                || type == Material.CACTUS
+                || type == Material.POWDER_SNOW
+                || type == Material.CAMPFIRE
+                || type == Material.SOUL_CAMPFIRE;
     }
     
     /**

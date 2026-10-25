@@ -45,10 +45,12 @@ public class K10TCPManager {
     private int k10Port;
     private int maxRetries;
     private int connectionTimeout;
+    private boolean debugMode;
     
     private final AtomicBoolean isProcessingQueue;
     private final ExecutorService executorService;
     private final ConcurrentLinkedQueue<String> messageQueue;
+    private final Object throttleLock = new Object();
     
     // 统计信息
     private final AtomicLong totalMessagesSent;
@@ -75,6 +77,7 @@ public class K10TCPManager {
         this.k10Port = config.getInt("k10.port");
         this.maxRetries = config.getInt("k10.max-retries");
         this.connectionTimeout = config.getInt("k10.connection-timeout");
+        this.debugMode = config.getBoolean("k10.debug-mode", false);
         
         // 验证和清理主机地址
         this.k10Host = validateAndCleanHost(this.k10Host);
@@ -186,6 +189,7 @@ public class K10TCPManager {
         this.k10Port = config.getInt("k10.port");
         this.maxRetries = config.getInt("k10.max-retries");
         this.connectionTimeout = config.getInt("k10.connection-timeout");
+        this.debugMode = config.getBoolean("k10.debug-mode", false);
         
         // 重新验证和清理主机地址
         this.k10Host = validateAndCleanHost(this.k10Host);
@@ -204,26 +208,31 @@ public class K10TCPManager {
     /**
      * 发送HTTP POST消息到K10（异步方式，带节流控制）
      * @param message 要发送的JSON消息
+     * @return 是否成功加入发送队列（不代表HTTP已送达）
      */
-    public void sendMessageAsync(String message) {
+    public boolean sendMessageAsync(String message) {
         if (message == null || message.isEmpty()) {
             Bukkit.getLogger().warning("[K10数字孪生] 尝试发送空消息，已忽略");
-            return;
+            return false;
         }
         
         // 安全验证：检查消息是否包含危险字符
         if (!isMessageSafe(message)) {
             Bukkit.getLogger().warning("[K10数字孪生] 消息包含不安全内容，已拒绝: " + message);
-            return;
+            return false;
         }
         
         // 消息节流：防止同类型消息洪泛
         String messageType = extractEventType(message);
         long currentTime = System.currentTimeMillis();
         
-        if (messageType.equals(lastMessageType) && (currentTime - lastMessageTime) < THROTTLE_INTERVAL_MS) {
-            Bukkit.getLogger().fine("[K10数字孪生] 消息被节流: " + messageType + " (间隔: " + (currentTime - lastMessageTime) + "ms)");
-            return;
+        synchronized (throttleLock) {
+            if (messageType.equals(lastMessageType) && (currentTime - lastMessageTime) < THROTTLE_INTERVAL_MS) {
+                Bukkit.getLogger().fine("[K10数字孪生] 消息被节流: " + messageType + " (间隔: " + (currentTime - lastMessageTime) + "ms)");
+                return false;
+            }
+            lastMessageType = messageType;
+            lastMessageTime = currentTime;
         }
         
         // 检查队列长度，防止内存溢出
@@ -234,18 +243,24 @@ public class K10TCPManager {
         
         messageQueue.add(message);
         totalMessagesSent.incrementAndGet();
-        lastMessageType = messageType;
-        lastMessageTime = currentTime;
         
-        Bukkit.getLogger().info("[K10数字孪生] 消息已加入队列 [" + messageQueue.size() + "/" + MAX_QUEUE_SIZE + "]: " + messageType);
+        if (debugMode) {
+            Bukkit.getLogger().info("[K10数字孪生] 消息已加入队列 [" + messageQueue.size() + "/" + MAX_QUEUE_SIZE + "]: " + messageType);
+        } else {
+            Bukkit.getLogger().fine("[K10数字孪生] 消息已加入队列 [" + messageQueue.size() + "/" + MAX_QUEUE_SIZE + "]: " + messageType);
+        }
         
         processMessageQueue();
+        return true;
     }
     
     /**
      * 处理消息队列（线程安全）
      */
     private void processMessageQueue() {
+        if (executorService.isShutdown()) {
+            return;
+        }
         if (isProcessingQueue.get()) {
             return;
         }
@@ -276,6 +291,10 @@ public class K10TCPManager {
                 
             } finally {
                 isProcessingQueue.set(false);
+                // 关闭“入队后处理线程刚好退出”的丢唤醒窗口
+                if (!messageQueue.isEmpty()) {
+                    processMessageQueue();
+                }
             }
         });
     }
@@ -304,7 +323,7 @@ public class K10TCPManager {
                 String urlString = "http://" + k10Host.trim() + ":" + k10Port + "/mc_event";
                 
                 // 调试日志：显示完整的URL（仅在首次重试时）
-                if (retryCount == 0) {
+                if (retryCount == 0 && debugMode) {
                     Bukkit.getLogger().info("[K10数字孪生] 🌐 连接目标: " + urlString);
                 }
                 
@@ -329,6 +348,7 @@ public class K10TCPManager {
                 lastResponseTime.set(responseTime);
                 
                 if (responseCode == 200) {
+                    String responseStr = "";
                     try (BufferedReader br = new BufferedReader(
                             new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                         StringBuilder response = new StringBuilder();
@@ -336,25 +356,34 @@ public class K10TCPManager {
                         while ((responseLine = br.readLine()) != null) {
                             response.append(responseLine.trim());
                         }
-                        
-                        String responseStr = response.toString();
-                        Bukkit.getLogger().info("[K10数字孪生] ✓ 发送成功 | 类型: " + extractEventType(message) + 
+                        responseStr = response.toString();
+                    } finally {
+                        conn.disconnect();
+                    }
+
+                    if (debugMode) {
+                        Bukkit.getLogger().info("[K10数字孪生] ✓ 发送成功 | 类型: " + extractEventType(message) +
                             " | 耗时: " + responseTime + "ms" +
                             " | 响应: " + (responseStr.length() > 50 ? responseStr.substring(0, 50) + "..." : responseStr));
-                        
-                        if (responseCallback != null && !responseStr.isEmpty()) {
-                            try {
-                                Map<String, Object> responseData = parseJsonResponse(responseStr);
-                                if (responseData != null && !responseData.isEmpty()) {
-                                    responseCallback.onResponse(responseData);
+                    } else {
+                        Bukkit.getLogger().fine("[K10数字孪生] ✓ 发送成功 | 类型: " + extractEventType(message) +
+                            " | 耗时: " + responseTime + "ms");
+                    }
+
+                    if (responseCallback != null && !responseStr.isEmpty()) {
+                        try {
+                            Map<String, Object> responseData = parseJsonResponse(responseStr);
+                            if (responseData != null && !responseData.isEmpty()) {
+                                responseCallback.onResponse(responseData);
+                                if (debugMode) {
                                     Bukkit.getLogger().info("[K10数字孪生] ✓ 响应已处理并回调");
                                 }
-                            } catch (Exception e) {
-                                Bukkit.getLogger().warning("[K10数字孪生] ⚠ 响应解析失败: " + e.getMessage());
                             }
+                        } catch (Exception e) {
+                            Bukkit.getLogger().warning("[K10数字孪生] ⚠ 响应解析失败: " + e.getMessage());
                         }
                     }
-                    
+
                     lastError = "";
                     isHealthy = true;
                     return true;

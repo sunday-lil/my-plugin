@@ -6,21 +6,22 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.ljcode.myPlugin.MyPlugin;
-import org.ljcode.myPlugin.listeners.HelpMessageListener;
 
 public class HelpCommand implements CommandExecutor {
 
-    private final HelpMessageListener helpMessageListener;
+    private final MyPlugin plugin;
 
     public HelpCommand(MyPlugin plugin) {
-        this.helpMessageListener = new HelpMessageListener(plugin);
+        this.plugin = plugin;
     }
     
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (sender instanceof Player) {
-            Player player = (Player) sender;
-            helpMessageListener.sendHelpMessage(player);
+        if (sender instanceof Player player) {
+            // 延迟到执行时取，避免 registerCommands 早于 registerListeners 导致 null
+            if (plugin.getHelpMessageListener() != null) {
+                plugin.getHelpMessageListener().sendHelpMessage(player);
+            }
         } else {
             sender.sendMessage(ChatColor.RED + "此命令只能由玩家执行！");
         }

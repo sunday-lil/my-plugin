@@ -80,8 +80,8 @@ public class BankManager {
      * @return 操作是否成功
      */
     public boolean deposit(Player player, double amount) {
-        if (amount <= 0) {
-            player.sendMessage(ChatColor.RED + "存款金额必须大于0!");
+        if (!org.ljcode.myPlugin.utils.BankUtils.isValidAmount(amount)) {
+            player.sendMessage(ChatColor.RED + "存款金额必须为正数!");
             return false;
         }
 
@@ -114,8 +114,8 @@ public class BankManager {
      * @return 操作是否成功
      */
     public boolean withdraw(Player player, double amount) {
-        if (amount <= 0) {
-            player.sendMessage(ChatColor.RED + "取款金额必须大于0!");
+        if (!org.ljcode.myPlugin.utils.BankUtils.isValidAmount(amount)) {
+            player.sendMessage(ChatColor.RED + "取款金额必须为正数!");
             return false;
         }
 
@@ -138,8 +138,8 @@ public class BankManager {
      * @return 操作是否成功
      */
     public boolean transfer(Player from, Player to, double amount) {
-        if (amount <= 0) {
-            from.sendMessage(ChatColor.RED + "转账金额必须大于0!");
+        if (!org.ljcode.myPlugin.utils.BankUtils.isValidAmount(amount)) {
+            from.sendMessage(ChatColor.RED + "转账金额必须为正数!");
             return false;
         }
 

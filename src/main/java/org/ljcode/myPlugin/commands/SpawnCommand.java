@@ -73,12 +73,10 @@ public class SpawnCommand implements CommandExecutor {
             return true;
         }
         
-        // 保存当前位置
-        plugin.getTeleportManager().setLastLocation(player, player.getLocation());
-        
-        // 传送到出生点
-        player.teleport(spawnLocation);
-        player.sendMessage(ChatColor.GREEN + "已传送到出生点!");
+        // 保存当前位置并传送（统一冷却/安全检查）
+        if (plugin.getTeleportManager().teleport(player, spawnLocation)) {
+            player.sendMessage(ChatColor.GREEN + "已传送到出生点!");
+        }
         
         return true;
     }

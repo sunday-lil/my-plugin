@@ -29,6 +29,9 @@ public class ShopGUI {
         Map<String, ShopManager.ShopItem> items = shopManager.getAllShopItems();
         
         for (ShopManager.ShopItem item : items.values()) {
+            if (item.getSlot() < 0 || item.getSlot() >= GUI_SIZE) {
+                continue;
+            }
             ItemStack displayItem = createDisplayItem(item);
             inventory.setItem(item.getSlot(), displayItem);
         }
@@ -82,6 +85,9 @@ public class ShopGUI {
             Map<String, ShopManager.ShopItem> items = shopManager.getAllShopItems();
             
             for (ShopManager.ShopItem item : items.values()) {
+                if (item.getSlot() < 0 || item.getSlot() >= inventory.getSize()) {
+                    continue;
+                }
                 ItemStack displayItem = createDisplayItem(item);
                 inventory.setItem(item.getSlot(), displayItem);
             }

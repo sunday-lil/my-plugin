@@ -39,6 +39,12 @@ public class MenuListener implements Listener {
         
         event.setCancelled(true);
         
+        // 只处理 GUI 顶部的物品；否则点击玩家自己背包里的同名物品会误触发菜单功能
+        if (event.getClickedInventory() == null
+                || event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
+        
         ItemStack clickedItem = event.getCurrentItem();
         if (clickedItem == null || clickedItem.getType() == Material.AIR) {
             return;

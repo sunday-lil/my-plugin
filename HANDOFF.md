@@ -1,127 +1,132 @@
-# 🤖 项目交接文档 (AI/开发者 Handoff)
+# 🤖 项目交接文档（v1.3.0）
 
-> **目的**：让下一个接手者（人类或 AI）在 5 分钟内掌握项目全貌、现状与坑位。
-> **最后更新**: 2026-08-17 · 对应版本 v1.2.1（插件文档版）/ v3.3（K10固件）
+> 最后更新：2026-10-25 · 插件 v1.3.0 · K10 固件 v3.3.2
 
----
+## 1️⃣ 这是什么
 
-## 1️⃣ 这是什么项目
+**EssentialsX-Clone**：Minecraft 服务器管理插件（Spigot 1.21 / Java 21 / Maven），独家与 **行空板 K10（ESP32-S3）** 做数字孪生联动：服务器状态、数字城市统计、环境数据实时推送到设备屏幕。
 
-**EssentialsX-Clone**：Minecraft 服务器管理插件（Bukkit/Spigot 1.21 + Java 21 + Maven），仿 EssentialsX，
-**独家功能是与行空板 K10 硬件的双向数字孪生联动**——服务器数据实时推送到 K10 屏幕显示。
-
-**双端架构**（改一端必须核对另一端协议）：
-
-| 端 | 语言/框架 | 文件 | 运行环境 |
+| 端 | 技术 | 文件 | 运行环境 |
 |---|---|---|---|
 | 插件端 | Java 21 / Spigot API 1.21 | `src/main/java/org/ljcode/myPlugin/` | MC 服务器 |
-| 设备端 | C++ / Arduino (ESP32-S3) | `mn.txt`（标准缩进版）/ `mn.md`（原始备份，内容一致） | 行空板 K10 |
+| 设备端 | Arduino/C++（ArduinoJson v6） | `mn.txt` | 行空板 K10 |
 
-**通信**：插件 → `POST http://{k10.host}:{k10.port}/mc_event`（单向推送 + K10 同步回响应）。K10 是 HTTP Server，插件是 Client。
-
----
+通信：插件 `POST http://<k10.host>:<port>/mc_event`；K10 是 HTTP Server，插件是 Client。方向是“推送 + 回执”，不是设备反向控制。
 
 ## 2️⃣ 关键文件地图
 
-```
-MyPlugin.java                  主类：装配所有 Manager/Listener，K10响应回调路由(88-91行)
+```text
+MyPlugin.java                 主类：装配、命令/监听器注册、reloadAll()
 managers/
-  K10TCPManager.java           ★核心：HTTP发送/重试/节流500ms/健康判定/Gson解析K10响应
-  DigitalCityManager.java      城市统计采集与 CITY_* 事件推送（含CityEvent内部类, color格式#RRGGBB; 红石窗口统计+激增检测）
-  EnvironmentDataScheduler.java v1.2.0聚合报告: 全玩家汇总成一条environment_summary, 默认60s/条(同步任务)
-  EnvironmentDataCalculator.java 环境数据算法（温度/湿度/光照/风速/天气/群系）
-  EnvironmentDataReceiver.java  K10环境响应处理
-  HouseholdManager.java        v1.2.0住户扫描: 床+半径6格门=一户; ChunkSnapshot+异步批处理(每批8区块), 回主线程回调
-  BankManager.java             银行（独立bank.yml，与钱包economy.yml分离）
-  EconomyManager.java          钱包/交易（5分钟自动保存，异步内runTask跳回主线程）
-  HomeManager/WarpManager/TeleportManager.java  传送三件套
+  K10TCPManager.java          队列/节流/重试/健康/Gson回执
+  DigitalCityManager.java     城市统计与 CITY_* 推送（30s 仪表盘）
+  EnvironmentDataScheduler.java 环境聚合报告（60s 一条）
+  EnvironmentDataCalculator.java 温度/湿度/光照/风速/群系
+  EnvironmentDataReceiver.java  回执处理（ACK/error/未知）
+  HouseholdManager.java       住户扫描（床+门=一户，只统计床头）
+  TeleportManager.java        统一传送入口（冷却/安全/eback）
+  EconomyManager/BankManager  钱包/银行（金额有限性校验）
+  ShopManager/HomeManager/WarpManager/AnnouncementManager/AnnouncementScheduler
 listeners/
-  K10DigitalTwinListener.java  玩家join/quit/death/chat → 传统事件推送
-  RedstoneListener.java        v1.2.0红石通断翻转计数(0↔N)→DigitalCityManager.recordRedstoneActivity()
-  MenuListener/ShopListener/PlayerListener...   各GUI与玩家事件
-web/WebServer.java             NanoHTTPD配置台(8080)，/api/*有IP白名单+可选token
-resources/config.yml           全部真实配置键（文档示例均已对齐此文件）
-mn.txt                         K10固件源码（Arduino IDE烧录，板子ESP32-S3-N8R2）
+  K10DigitalTwinListener.java 玩家事件 → K10
+  DigitalCityListener.java    事件 → 城市统计（受 block/chat 开关控制）
+  ChatFormatListener.java     聊天格式（% 转义、ActionBar 回主线程）
+  ChatHintListener.java       表情/提示（先于 ChatFormat）
+  ProfanityFilterListener.java 脏话过滤（UUID 计数、退出清理）
+  BlockBreakListener.java     自动拾取（HIGHEST + ignoreCancelled）
+  ShopListener/MenuListener   只处理 GUI 顶层点击
+  UpdateCheckerListener.java  GitHub Releases 更新检查
+commands/                     20 个命令类
+gui/ShopGUI.java              9 格商店
+web/WebServer.java            NanoHTTPD 8080 + /api/config
+resources/config.yml          唯一配置真相源（v1.3.0 已清理死键）
+resources/web/index.html      Schema 驱动的配置面板
+mn.txt                        K10 固件（v3.3.2）
 ```
 
-三层架构：`commands/`（命令入口）→ `managers/`（业务）→ `listeners/`（事件）。GUI 在 `gui/`，测试在 `src/test/java/`。
+三层架构：`commands/` → `managers/` → `listeners/`；GUI 在 `gui/`，Web 在 `web/`，测试在 `src/test/java`。
 
----
+## 3️⃣ 通信协议速查（两端字段必须一致）
 
-## 3️⃣ 通信协议速查（两端字段名必须严格一致）
-
-K10 端入口 `handleMcEvent()` 按字段分发，两套约定并存：
-
-| 消息类型 | 插件构造处 | K10处理函数 | 关键字段 |
+| 消息 | 构造处 | 固件处理 | 关键字段 |
 |---|---|---|---|
 | 传统事件 | K10DigitalTwinListener | handleMcEvent | `event`(player_join/quit/death/custom_msg) + `player`/`message` |
-| 环境聚合报告 ★v1.2.0 | EnvironmentDataScheduler.collectAndSendSummary | handleEnvironmentSummary | `event`="environment_summary" + request_id/player_count/`players`数组{name,temperature,humidity,light,wind_speed,weather,biome}；K10直接ArduinoJson解析数组(getJsonValue不支持数组)；★v1.2.1固件v3.3起到达只刷新表格不切页 |
-| 环境单玩家(已废弃) | （v1.2.0起不再发送） | （v3.3固件已删除处理，收到仅回ok+deprecated） | 旧协议 `event`="environment_data"，勿再使用 |
-| 城市初始化 | DigitalCityManager.sendCityInitialization | processCityInitData | `event_type`="CITY_INIT" + city_name/founded_date |
-| 城市仪表盘 | sendCityDashboard(30秒/次,可配) | processCityDashboardData | `event_type`="CITY_DASHBOARD" + 嵌套 basic_stats./population_stats.(含households)/economy_stats./activity_stats.(含redstone_changes) |
-| 城市事件 | addCityEvent | processCityEventData | `event_type`="CITY_EVENT" + 嵌套`event`{type,source,description,color:"#RRGGBB"}；新类型: HOUSING_CHANGE/REDSTONE_SURGE |
+| 环境聚合 | EnvironmentDataScheduler | handleEnvironmentSummary | `event=environment_summary` + `request_id`/`player_count`/`players[]` |
+| 城市初始化 | DigitalCityManager.sendCityInitialization | processCityInitData | `event_type=CITY_INIT` + `city_name`/`founded_date` |
+| 城市仪表盘 | sendCityDashboard | processCityDashboardData | `event_type=CITY_DASHBOARD` + 四组嵌套统计（**无 recent_events**） |
+| 城市事件 | addCityEvent | processCityEventData | `event_type=CITY_EVENT` + `event{type,source,description,color}` |
+| 详细统计 | collectDetailedStatistics | 只打印日志 | `event_type=DETAILED_STATISTICS` |
 
-**注意**：
-- K10 端 `getJsonValue()` 只支持**一层**嵌套（`basic_stats.tps` 可以，三层不行）；数组必须像 handleEnvironmentSummary 那样直接用 ArduinoJson 迭代
-- K10 用 ArduinoJson：数字会被转成 `"5.00"` 字符串再 toInt()/toFloat()，正常工作；聚合报告doc给到16384字节(20玩家全字段)；★教训：DynamicJsonDocument容量必须≥消息体(聚合报告10+玩家即超2KB，旧的2048会NoMemory→event解析为空→回裸ok→插件报"未知响应类型")；getJsonValue默认2048仅适用于小消息，大消息必须单次大doc解析
-- K10 环境响应含 `request_id`，MyPlugin 据此路由到调度器；普通事件响应 `{"status":"ok"}` 无此字段不会误路由
-- 插件端节流按 `event_type`/`event` 字段区分类型，同类型 500ms 内去重
-- K10 v3.3 界面逻辑：三页结构（城市大屏默认/环境表格/玩家详情）；WiFi就绪(networkReady)前只显示配网/连接页；表格页 A/B移动选中行、A+B确认(玩家行→详情/返回行→大屏)、末尾固定返回行；30s无操作回大屏；事件全屏通知约4秒(showTempStatus/checkRestoreStatus配对)；环境报告只刷数据不切页；按键无长按功能，重置WiFi仅网页端/reset
+**必须记住**：
 
----
+- 固件 `getJsonValue()` 只支持**一层**点号嵌套；数组要显式迭代。
+- `CITY_DASHBOARD` 固件单次 16KB 解析；保持单帧 < 2KB 余量。不要再加 `recent_events` 这类大数组。
+- `environment_summary` 最多 20 行；插件 `max-players-in-report` 不要超过 20。
+- 城市/传统事件固件回 `{"status":"ok"}`；插件把它当正常 ACK，不再告警。环境报告回执带 `request_id`，按它路由。
+- 数字经 ArduinoJson `float` 中转；`founded_date`/`timestamp` 会丢精度，固件不用于逻辑。
+- `CITY_INIT` 只发一次；设备 WiFi 连接阶段（最多 30 秒）会丢，城市名保持默认。
+- 事件白名单：`PLAYER_JOIN/QUIT/DEATH/STATUS_CHANGE/MILESTONE/HOUSING_CHANGE/REDSTONE_SURGE`。
+- AP 配网模式没有 `/mc_event`、`/reset`；配网完成重启后才注册业务路由。
 
-## 4️⃣ 当前状态（v1.1.0 已完成）
+## 4️⃣ 当前状态（v1.3.0）
 
-- ✅ 12 个逻辑级 Bug 全部修复（详见 CHANGELOG.md 1.1.0 条目）
-- ✅ K10 代码已格式化为标准缩进（mn.txt），并补 economy_stats 联动（银行账户上屏）
-- ✅ Web API 安全加固（IP 白名单 + 可选 token，默认仅本机）
-- ✅ target/ 已移出 git 跟踪；web/index.html 冗余文件已删；测试迁至 src/test/java
-- ✅ 文档（README/CHANGELOG/DIGITAL_CITY_GUIDE）已同步 v1.1.0
-- ✅ 编译验证：`mvn clean package` 通过
+- ✅ `mvn clean package` 成功；产物 `target/myplugin-1.3.0.jar`（约 596KB shaded）
+- ✅ 4 个 JUnit 5 测试通过（金额校验、版本比较）
+- ✅ 修复全新数据目录启动失败（`warps.yml`/`teleport.yml`）
+- ✅ 修复 K10 回执告警刷屏、仪表盘大帧静默丢弃、队列丢唤醒
+- ✅ 修复命令/经济/商店/菜单/方块破坏/聊天/传送等多处逻辑漏洞
+- ✅ Web 配置面板重写，支持 K10/环境/数字城市配置
+- ✅ 文档同步：README/CHANGELOG/HANDOFF/DIGITAL_CITY_GUIDE
+- ⚠️ 未在真实 MC 服务器 + 真实 K10 上做端到端联调；发布前建议按第 6 节验证
 
----
-
-## 5️⃣ 已知遗留（非 Bug，接手后可考虑）
+## 5️⃣ 已知遗留（非 Bug 或需环境验证）
 
 | 事项 | 位置 | 说明 |
 |---|---|---|
-| 城市状态阈值硬编码 | DigitalCityManager.checkCityStatus() | 文档已注明"暂无配置项"；如加配置需同步改文档 |
-| founded_date 溢出 | mn.txt processCityInitData | 毫秒时间戳超出32位 toInt()，但 cityFoundedTime 赋值后从未使用，无实际影响 |
-| total_volume 单位是"分" | DigitalCityManager.recordEconomyTransaction | `amount*100` 存储；K10 端目前不显示金额，如要显示需 ÷100 |
-| DETAILED_STATISTICS 未消费 | mn.txt handleCityEvent | 插件发送详细统计（生物群系/热力图/玩家位置），K10 仅打印日志未展示 |
-| K10 文件名 | mn.md / mn.txt | mn.md 为乱缩进原始备份；**后续改 K10 代码一律改 mn.txt**，别动 mn.md |
+| 城市状态阈值硬编码 | `DigitalCityManager.checkCityStatus()` | 文档已注明；如加配置需同步文档 |
+| `founded_date` 精度 | `mn.txt processCityInitData` | 毫秒时间戳经 float 丢精度，赋值后未使用 |
+| `total_volume` 单位是“分” | `DigitalCityManager.recordEconomyTransaction` | K10 不显示金额；要显示需 ÷100 |
+| `DETAILED_STATISTICS` 未消费 | `mn.txt handleCityEvent` | 固件只打印串口日志 |
+| 玩家等级为随机演示值 | `ChatFormatListener` | 未持久化，仅用于显示 |
+| 聊天历史仅内存 | `ChatHintListener` | 退出清理，不持久化 |
+| K10 无断线重连 | `mn.txt setup()` | 断网后需重启设备 |
 
----
-
-## 6️⃣ 构建 / 测试 / 烧录
+## 6️⃣ 构建 / 测试 / 烧录 / 发布
 
 ```powershell
-# 编译（本机无独立 mvn，用 IntelliJ 自带）：
-& "E:\IntelliJ IDEA 2026.2.1\plugins\maven-plugin\lib\maven3\bin\mvn.cmd" -f "e:\minecraft dev\my plugin\pom.xml" clean package
-# 产物: target/myplugin-1.0-SNAPSHOT.jar (shaded, ~580KB)
+# 编译 + 测试 + shaded JAR（推荐）
+& "E:\IntelliJ IDEA 2026.2.1\plugins\maven-plugin\lib\maven3\bin\mvn.cmd" `
+  -f "E:\minecraft dev\my plugin\pom.xml" clean package
 
-# 测试: mvn test（BankSystemTest 在 src/test/java）
-# K10固件: Arduino IDE 打开 mn.txt，板子选 ESP32-S3-N8R2，上传
+# 仅测试
+mvn test
+
+# 产物
+target/myplugin-1.3.0.jar
 ```
 
----
+- 本机 JDK 26 编译 target 21 会有模块路径警告，不影响。
+- 首次跑测试需要 Maven 能访问仓库（JUnit 5 / Surefire provider）。
+- K10 固件：Arduino IDE 打开 `mn.txt`，板子选 **ESP32-S3-N8R2**，上传。
+- 发布：`git tag v1.3.0 && git push origin main --tags`，再 `gh release create v1.3.0 target/myplugin-1.3.0.jar`。
 
-## 7️⃣ 环境坑位提醒（重要！）
+## 7️⃣ 环境坑位（重要）
 
-1. **git push 会被终端沙箱静默拦截**（无输出+假exit 0）。网络命令必须在真实终端执行（requires_approval=true），push 后必须 `git status -sb` 验证无 ahead。
-2. **PowerShell 执行策略**阻止脚本/HEREDOC：git commit 多行信息用多个 `-m` 参数，别用 bash 语法。
-3. git 身份已配置在**仓库级**（sunday-lil），全局未配置，新环境直接 commit 会报 Author identity unknown。
-4. K10 固件无法本地编译验证，只能静态核对协议字段——**改插件 K10 相关代码时，务必对照 mn.txt 的 handleMcEvent/processCityDashboardData 同步核对**。
-5. config.yml 是唯一配置真相源；文档中的 YAML 示例曾出现过死键（status-thresholds、bank.enabled），已全部清理，新增配置务必三处同步（config.yml + 代码读取 + 文档）。
-6. **Mind+ 编译 C++ 陷阱**：默认参数只能写在**前置声明或定义其中一处**（mn.txt 的 getJsonValue 曾因此报 ambiguous 重载歧义）；约定：默认参数放前置声明，定义处不写。
-7. **换新 JAR 必须重启服务器并核对版本**：插件日志若出现 `{deprecated=true, status=ok}` / "未知响应类型"，说明服务器还在跑旧版 JAR（旧版发 environment_data，新版只发 environment_summary）——先 `/version EssentialsX-Clone` 确认版本再查代码。
+1. **换 JAR 必须重启服务器**；`/reload` 不会重启环境/城市调度器，也不会换 Web 端口。
+2. 插件日志出现“未知响应类型”时，先确认版本；v1.3.0 对裸 `{"status":"ok"}` 已不再告警。
+3. **改 K10 相关代码必须同步 `mn.txt`**：字段名、嵌套层级、单帧大小、回执形状、16KB/20 行上限。
+4. **`config.yml` 是唯一配置真相源**；新增键必须三处同步：`config.yml` + 代码读取 + 文档/Web schema。
+5. **Mind+ 编译 C++ 陷阱**：默认参数只能写在声明或定义其中一处；当前 `getJsonValue`/`extractJsonObject` 默认参数在前置声明。
+6. PowerShell 5.1 的 `Set-Content` 默认按 ANSI 写文件，会破坏中文 UTF-8；改文件请用编辑器/UTF-8 工具。
+7. 本机 Maven 访问 central 可能超时，但 `curl` 可下载；测试依赖已缓存到本地 `.m2`。
+8. `mn.md` 已移除，只维护 `mn.txt`。
+9. 高危命令（`/enuke`、`/eall*`、`/eflameblade`、`/e12503`、`/holo`）均有权限门禁；不要为了方便去掉。
+10. Web 保存通过 `callSyncMethod` 回主线程重载；不要在 NanoHTTPD 线程直接调用 Bukkit 调度器。
 
----
-
-## 8️⃣ 接手后第一件事建议
+## 8️⃣ 接手后第一件事
 
 ```bash
 git log --oneline -10          # 看最近提交
-# 读本文件 → 读 config.yml → 读 K10TCPManager.java → 读 mn.txt 的 handleMcEvent()
-# 改动前先跑一次 mvn clean package 确认基线可编译
+# 读本文件 → 读 config.yml → 读 K10TCPManager.java → 读 mn.txt handleMcEvent()
+# 改动前先跑一次 mvn clean package 确认基线
 ```

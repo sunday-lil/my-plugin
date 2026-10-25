@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.time.LocalDate;
 
 public class DigitalCityManager {
     private static DigitalCityManager instance;
@@ -35,13 +36,14 @@ public class DigitalCityManager {
     private volatile int households = 0;
 
     private final Map<String, PlayerActivityData> playerActivityMap = new ConcurrentHashMap<>();
-    private final List<CityEvent> recentEvents = Collections.synchronizedList(new ArrayList<>());
     private final Map<String, Integer> biomeDistribution = new ConcurrentHashMap<>();
     private final Map<String, Integer> activityHeatmap = new ConcurrentHashMap<>();
 
     private String cityStatus = "NORMAL";
     private Date cityFoundedDate;
     private int peakPlayersToday = 0;
+    private int deathsToday = 0;
+    private LocalDate statsDate = LocalDate.now();
 
     private int cityDashboardTaskId = -1;
     private int statisticsTaskId = -1;
@@ -92,9 +94,36 @@ public class DigitalCityManager {
     public void stopCityManagement() {
         if (cityDashboardTaskId != -1) {
             Bukkit.getScheduler().cancelTask(cityDashboardTaskId);
+            cityDashboardTaskId = -1;
         }
         if (statisticsTaskId != -1) {
             Bukkit.getScheduler().cancelTask(statisticsTaskId);
+            statisticsTaskId = -1;
+        }
+    }
+
+    /**
+     * 重载城市统计周期：停止旧任务后按当前配置重新开始（不再重复发送 CITY_INIT）。
+     */
+    public void reloadConfig() {
+        stopCityManagement();
+        if (!plugin.getConfig().getBoolean("digital-city.enabled", true)) {
+            plugin.getLogger().info("[数字城市] 配置已禁用，任务已停止");
+            return;
+        }
+        startCityDashboard();
+        startStatisticsCollection();
+        plugin.getLogger().info("[数字城市] 配置已重新加载，仪表盘周期: "
+                + plugin.getConfig().getLong("digital-city.dashboard-interval", 600L) + " ticks");
+    }
+
+    /** 跨天时重置当日峰值与当日死亡数，避免累计值把城市状态永久锁死。 */
+    private void rollDailyStats() {
+        LocalDate today = LocalDate.now();
+        if (!today.equals(statsDate)) {
+            statsDate = today;
+            peakPlayersToday = 0;
+            deathsToday = 0;
         }
     }
 
@@ -133,6 +162,9 @@ public class DigitalCityManager {
     }
 
     private void sendCityDashboard() {
+        rollDailyStats();
+        checkCityStatus();
+
         int onlinePlayers = Bukkit.getOnlinePlayers().size();
         int maxPlayers = Bukkit.getMaxPlayers();
         double tps = getTPS();
@@ -185,8 +217,6 @@ public class DigitalCityManager {
         checkRedstoneSurge(redstoneWindow);
         dashboardData.put("activity_stats", activityStats);
 
-        dashboardData.put("recent_events", getRecentEvents(5));
-
         String dashboardJson = gson.toJson(dashboardData);
 
         // 强制输出调试信息（无论配置如何，首次都显示）
@@ -232,12 +262,15 @@ public class DigitalCityManager {
     }
 
     public void recordPlayerJoin(Player player) {
+        rollDailyStats();
         totalPlayersJoined.incrementAndGet();
 
         PlayerActivityData data = new PlayerActivityData(player.getName(), System.currentTimeMillis());
         playerActivityMap.put(player.getName().toLowerCase(), data);
 
-        addCityEvent("PLAYER_JOIN", player.getName(), "玩家加入城市", 0x66FF66);
+        if (plugin.getConfig().getBoolean("digital-city.welcome-message-enabled", true)) {
+            addCityEvent("PLAYER_JOIN", player.getName(), "玩家加入城市", 0x66FF66);
+        }
 
         int onlineCount = Bukkit.getOnlinePlayers().size();
         if (onlineCount > peakPlayersToday) {
@@ -258,7 +291,9 @@ public class DigitalCityManager {
     }
 
     public void recordPlayerDeath(Player player, String deathCause) {
+        rollDailyStats();
         totalDeaths.incrementAndGet();
+        deathsToday++;
         addCityEvent("PLAYER_DEATH", player.getName(), "阵亡: " + deathCause, 0xFF4444);
         checkCityStatus();
     }
@@ -324,11 +359,6 @@ public class DigitalCityManager {
 
     private void addCityEvent(String type, String source, String description, int color) {
         CityEvent event = new CityEvent(type, source, description, color, System.currentTimeMillis());
-        recentEvents.add(0, event);
-
-        while (recentEvents.size() > 50) {
-            recentEvents.remove(recentEvents.size() - 1);
-        }
 
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("event_type", "CITY_EVENT");
@@ -351,9 +381,9 @@ public class DigitalCityManager {
 
         String oldStatus = cityStatus;
 
-        if (tps < 10.0 || totalDeaths.get() > 50) {
+        if (tps < 10.0 || deathsToday > 20) {
             cityStatus = "CRITICAL";
-        } else if (tps < 15.0 || totalDeaths.get() > 20) {
+        } else if (tps < 15.0 || deathsToday > 10) {
             cityStatus = "WARNING";
         } else if (onlinePlayers >= Bukkit.getMaxPlayers() * 0.8) {
             cityStatus = "BUSY";
@@ -367,17 +397,6 @@ public class DigitalCityManager {
             addCityEvent("STATUS_CHANGE", "系统", "城市状态: " + translateStatus(cityStatus),
                         "CRITICAL".equals(cityStatus) ? 0xFF4444 : "WARNING".equals(cityStatus) ? 0xFFAA44 : 0x66FF66);
         }
-    }
-
-    private List<Map<String, Object>> getRecentEvents(int count) {
-        List<Map<String, Object>> events = new ArrayList<>();
-        int limit = Math.min(count, recentEvents.size());
-
-        for (int i = 0; i < limit; i++) {
-            events.add(recentEvents.get(i).toMap());
-        }
-
-        return events;
     }
 
     private double getTPS() {

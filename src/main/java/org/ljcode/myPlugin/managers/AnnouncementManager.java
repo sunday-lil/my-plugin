@@ -458,7 +458,6 @@ public class AnnouncementManager {
     }
 
     public void reloadConfig() {
-        plugin.reloadConfig();
         config = plugin.getConfig();
     }
 }

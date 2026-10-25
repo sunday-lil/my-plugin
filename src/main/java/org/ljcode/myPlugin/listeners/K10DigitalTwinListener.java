@@ -11,6 +11,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.ljcode.myPlugin.managers.K10TCPManager;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * 行空板K10数字孪生事件监听器 (优化版)
  * 
@@ -26,9 +28,9 @@ public class K10DigitalTwinListener implements Listener {
     private final K10TCPManager tcpManager;
     private FileConfiguration config;
     
-    // 统计信息
-    private long totalEventsProcessed = 0;
-    private long eventsFiltered = 0;
+    // 统计信息（聊天事件在异步线程触发，使用原子计数）
+    private final AtomicLong totalEventsProcessed = new AtomicLong();
+    private final AtomicLong eventsFiltered = new AtomicLong();
     
     // 最大消息长度限制
     private static final int MAX_PLAYER_NAME_LENGTH = 50;
@@ -77,7 +79,7 @@ public class K10DigitalTwinListener implements Listener {
         
         String jsonBody = jsonBuilder.toString();
         
-        totalEventsProcessed++;
+        totalEventsProcessed.incrementAndGet();
         logEvent("PLAYER_JOIN", playerName, jsonBody);
         tcpManager.sendMessageAsync(jsonBody);
     }
@@ -105,7 +107,7 @@ public class K10DigitalTwinListener implements Listener {
         
         String jsonBody = jsonBuilder.toString();
         
-        totalEventsProcessed++;
+        totalEventsProcessed.incrementAndGet();
         logEvent("PLAYER_QUIT", playerName, jsonBody);
         tcpManager.sendMessageAsync(jsonBody);
     }
@@ -136,7 +138,7 @@ public class K10DigitalTwinListener implements Listener {
         
         String jsonBody = jsonBuilder.toString();
         
-        totalEventsProcessed++;
+        totalEventsProcessed.incrementAndGet();
         logEvent("PLAYER_DEATH", playerName + " - " + deathMessage, jsonBody);
         tcpManager.sendMessageAsync(jsonBody);
     }
@@ -146,10 +148,10 @@ public class K10DigitalTwinListener implements Listener {
      * 发送格式：{"event":"custom_msg","player":"玩家名","message":"聊天内容","world":"世界名","timestamp":时间戳}
      * @param event 玩家聊天事件
      */
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         if (!config.getBoolean("k10.chat-events-enabled", true)) {
-            eventsFiltered++;
+            eventsFiltered.incrementAndGet();
             return;
         }
         
@@ -160,7 +162,7 @@ public class K10DigitalTwinListener implements Listener {
         
         // 额外检查：如果消息为空或只有空格，则跳过
         if (chatMessage.trim().isEmpty()) {
-            eventsFiltered++;
+            eventsFiltered.incrementAndGet();
             return;
         }
         
@@ -179,7 +181,7 @@ public class K10DigitalTwinListener implements Listener {
         
         String jsonBody = jsonBuilder.toString();
         
-        totalEventsProcessed++;
+        totalEventsProcessed.incrementAndGet();
         logEvent("CHAT_MSG", playerName + ": " + chatMessage, jsonBody);
         tcpManager.sendMessageAsync(jsonBody);
     }
@@ -256,16 +258,17 @@ public class K10DigitalTwinListener implements Listener {
      * @param jsonData 完整JSON数据
      */
     private void logEvent(String eventType, String summary, String jsonData) {
-        Bukkit.getLogger().info(String.format(
-            "[K10数字孪生] ✓ %s | %s | #%d",
-            eventType,
-            summary.length() > 50 ? summary.substring(0, 50) + "..." : summary,
-            totalEventsProcessed
-        ));
-        
-        // 在调试模式下显示完整JSON
+        long count = totalEventsProcessed.get();
         if (config.getBoolean("k10.debug-mode", false)) {
+            Bukkit.getLogger().info(String.format(
+                "[K10数字孪生] ✓ %s | %s | #%d",
+                eventType,
+                summary.length() > 50 ? summary.substring(0, 50) + "..." : summary,
+                count
+            ));
             Bukkit.getLogger().info("[K10数字孪生] [DEBUG] JSON: " + jsonData);
+        } else {
+            Bukkit.getLogger().fine("[K10数字孪生] " + eventType + " #" + count);
         }
     }
     
@@ -279,8 +282,8 @@ public class K10DigitalTwinListener implements Listener {
         StringBuilder sb = new StringBuilder();
         sb.append("\n§6[K10数字孪生] 事件监听器统计§r\n");
         sb.append("§7─────────────────────────────§r\n");
-        sb.append("§e总处理事件数: §f").append(totalEventsProcessed).append("\n");
-        sb.append("§e过滤事件数: §f").append(eventsFiltered).append("\n");
+        sb.append("§e总处理事件数: §f").append(totalEventsProcessed.get()).append("\n");
+        sb.append("§e过滤事件数: §f").append(eventsFiltered.get()).append("\n");
         sb.append("§e处理效率: §f").append(calculateEfficiency()).append("%\n");
         sb.append("§7─────────────────────────────§r");
         
@@ -292,17 +295,17 @@ public class K10DigitalTwinListener implements Listener {
      * @return 效率百分比
      */
     private double calculateEfficiency() {
-        long total = totalEventsProcessed + eventsFiltered;
+        long total = totalEventsProcessed.get() + eventsFiltered.get();
         if (total == 0) return 100.0;
-        return (totalEventsProcessed * 100.0) / total;
+        return (totalEventsProcessed.get() * 100.0) / total;
     }
     
     /**
      * 重置统计数据（用于测试或管理命令）
      */
     public void resetStatistics() {
-        totalEventsProcessed = 0;
-        eventsFiltered = 0;
+        totalEventsProcessed.set(0);
+        eventsFiltered.set(0);
         Bukkit.getLogger().info("[K10数字孪生] 统计数据已重置");
     }
     
@@ -311,7 +314,7 @@ public class K10DigitalTwinListener implements Listener {
      * @return 总处理数
      */
     public long getTotalEventsProcessed() {
-        return totalEventsProcessed;
+        return totalEventsProcessed.get();
     }
     
     /**
@@ -319,6 +322,6 @@ public class K10DigitalTwinListener implements Listener {
      * @return 过滤数
      */
     public long getEventsFiltered() {
-        return eventsFiltered;
+        return eventsFiltered.get();
     }
 }

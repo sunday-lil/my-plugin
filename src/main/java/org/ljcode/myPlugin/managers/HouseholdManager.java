@@ -6,6 +6,8 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.World;
+import org.bukkit.block.data.type.Bed;
+import org.bukkit.block.data.type.Door;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.ljcode.myPlugin.MyPlugin;
@@ -68,6 +70,16 @@ public class HouseholdManager {
         if (scanTaskId != -1) {
             Bukkit.getScheduler().cancelTask(scanTaskId);
             scanTaskId = -1;
+        }
+    }
+
+    /** 配置重载：停止旧任务并按新周期/半径重新开始。 */
+    public void reload() {
+        stop();
+        if (plugin.getConfig().getBoolean("digital-city.households.enabled", true)) {
+            start();
+        } else {
+            plugin.getLogger().info("[住户扫描] 配置已禁用");
         }
     }
 
@@ -134,7 +146,13 @@ public class HouseholdManager {
                     }
                 } catch (Exception e) {
                     plugin.getLogger().warning("[住户扫描] 异步处理异常: " + e.getMessage());
-                    finishScan(householdCount); // 出错时保留旧值
+                    // 回主线程恢复状态，避免在异步线程触碰 Bukkit 状态
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            finishScan(householdCount);
+                        }
+                    }.runTask(plugin);
                 }
             }
         }.runTaskAsynchronously(plugin);
@@ -152,8 +170,17 @@ public class HouseholdManager {
                     int worldX = chunk.chunkX() * 16 + x;
                     int worldZ = chunk.chunkZ() * 16 + z;
                     if (Tag.BEDS.isTagged(type)) {
+                        // 床有头/尾两个方块，只统计床头，避免一张床算成两户
+                        if (chunk.snapshot().getBlockData(x, y, z) instanceof Bed bed
+                                && bed.getPart() != Bed.Part.HEAD) {
+                            continue;
+                        }
                         beds.add(new BlockPos(chunk.worldName(), worldX, y, worldZ));
                     } else if (Tag.DOORS.isTagged(type)) {
+                        if (chunk.snapshot().getBlockData(x, y, z) instanceof Door door
+                                && door.getHalf() != Door.Half.BOTTOM) {
+                            continue;
+                        }
                         doors.add(new BlockPos(chunk.worldName(), worldX, y, worldZ));
                     }
                 }

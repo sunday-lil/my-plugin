@@ -15,17 +15,28 @@ import java.util.UUID;
 
 public class EconomyCommand implements CommandExecutor {
     
+    private final MyPlugin plugin;
     private final EconomyManager economyManager;
     private final DecimalFormat decimalFormat;
 
     public EconomyCommand(MyPlugin plugin) {
+        this.plugin = plugin;
         this.economyManager = plugin.getEconomyManager();
         this.decimalFormat = new DecimalFormat("#,##0.00");
     }
     
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        String cleanLabel = label.toLowerCase().replaceFirst("^e", "");
+        if (!plugin.getConfig().getBoolean("economy.enabled", true)) {
+            sender.sendMessage(ChatColor.RED + "经济系统已禁用!");
+            return true;
+        }
+        
+        String cleanLabel = label.toLowerCase(java.util.Locale.ROOT);
+        // /eco 本身以 e 开头，不能盲目去掉首字母
+        if (!"eco".equals(cleanLabel) && cleanLabel.startsWith("e")) {
+            cleanLabel = cleanLabel.substring(1);
+        }
         
         switch (cleanLabel) {
             case "money":
@@ -108,10 +119,7 @@ public class EconomyCommand implements CommandExecutor {
         
         double amount;
         try {
-            amount = Double.parseDouble(args[1]);
-            if (amount <= 0) {
-                throw new NumberFormatException();
-            }
+            amount = org.ljcode.myPlugin.utils.BankUtils.parseAmount(args[1]);
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "无效的金额! 金额必须为正数!");
             return true;
@@ -203,13 +211,9 @@ public class EconomyCommand implements CommandExecutor {
         
         double amount;
         try {
-            amount = Double.parseDouble(args[2]);
-            if (amount < 0) {
-                sender.sendMessage(ChatColor.RED + "金额不能为负数!");
-                return true;
-            }
+            amount = org.ljcode.myPlugin.utils.BankUtils.parseNonNegativeAmount(args[2]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(ChatColor.RED + "无效的金额!");
+            sender.sendMessage(ChatColor.RED + "无效的金额! 金额不能为负数!");
             return true;
         }
         

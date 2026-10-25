@@ -260,11 +260,17 @@ public class WebServer extends NanoHTTPD {
 
             String postData = "";
 
-            // 尝试从临时文件获取数据（multipart/form-data）
-            if (!files.isEmpty()) {
+            // NanoHTTPD 对非 multipart 的 POST 会把原始 body 放进 files["postData"]，
+            // 不是临时文件路径；只有 multipart 才是临时文件。
+            String rawBody = files.get("postData");
+            if (rawBody != null && !rawBody.isEmpty()) {
+                postData = rawBody;
+            } else if (!files.isEmpty()) {
                 String tempFileName = files.values().iterator().next();
                 File tempFile = new File(tempFileName);
-                postData = java.nio.file.Files.readString(tempFile.toPath());
+                if (tempFile.isFile()) {
+                    postData = java.nio.file.Files.readString(tempFile.toPath());
+                }
             } else {
                 // 尝试从参数获取数据
                 java.util.Map<String, java.util.List<String>> parms = session.getParameters();
@@ -338,11 +344,11 @@ public class WebServer extends NanoHTTPD {
 
             config.save(configFile);
 
-            // 重新加载插件配置
-            plugin.reloadConfig();
-
-            // 同步新配置对象到K10链路各持有者，确保Web修改的K10设置立即生效
-            plugin.syncK10Config();
+            // 重新加载插件配置与可热重载的任务（必须回到主线程调度 Bukkit 任务）
+            org.bukkit.Bukkit.getScheduler().callSyncMethod(plugin, () -> {
+                plugin.reloadAll();
+                return null;
+            }).get(10, java.util.concurrent.TimeUnit.SECONDS);
 
             return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"success\",\"message\":\"Config saved successfully\"}");
         } catch (Exception e) {
@@ -384,7 +390,8 @@ public class WebServer extends NanoHTTPD {
         try {
             canonicalPath = file.getCanonicalPath();
             String canonicalWebRoot = new File(webRoot).getCanonicalPath();
-            if (!canonicalPath.startsWith(canonicalWebRoot)) {
+            if (!canonicalPath.equals(canonicalWebRoot)
+                    && !canonicalPath.startsWith(canonicalWebRoot + File.separator)) {
                 return newFixedLengthResponse(Response.Status.FORBIDDEN, MIME_PLAINTEXT, "Access denied");
             }
         } catch (IOException e) {

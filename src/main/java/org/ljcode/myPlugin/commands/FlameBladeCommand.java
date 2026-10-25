@@ -83,6 +83,14 @@ public class FlameBladeCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!player.hasPermission("essentialsx.admin")) {
+            player.sendMessage(ChatColor.RED + "你没有权限使用此命令!");
+            return true;
+        }
+        
+        // 每次执行重新读取配置，/eanreload 后无需重启
+        loadConfig();
+        
         // 检查功能是否在配置中启用
         if (!isFlameBladeEnabled) {
             player.sendMessage(ChatColor.RED + "火焰刀功能当前未启用！");
@@ -149,60 +157,8 @@ public class FlameBladeCommand implements CommandExecutor {
      * @return 该附魔的最大等级
      */
     private int getMaxEnchantLevel(Enchantment enchantment) {
-        // 根据附魔类型返回最大等级，这些是Minecraft原版中各附魔的固定最高等级
-        switch (enchantment.getKey().getKey().toLowerCase()) {
-            // 保护类附魔最高等级为4
-            case "protection":
-            case "fire_protection":
-            case "blast_protection":
-            case "projectile_protection":
-                return 4;
-                
-            // 荆棘附魔最高等级为3
-            case "thorns":
-                return 3;
-                
-            // 大部分常用附魔最高等级为5
-            case "respiration":
-            case "depth_strider":
-            case "sharpness":
-            case "smite":
-            case "bane_of_arthropods":
-            case "knockback":
-            case "fire_aspect":
-            case "looting":
-            case "efficiency":
-            case "silk_touch":
-            case "unbreaking":
-            case "fortune":
-            case "power":
-            case "punch":
-            case "flame":
-            case "infinity":
-            case "luck_of_the_sea":
-            case "lure":
-                return 5;
-                
-            // 部分特殊附魔最高等级为3
-            case "feather_falling":
-            case "swift_sneak":
-            case "sweeping":
-            case "impaling":
-            case "loyalty":
-            case "riptide":
-            case "channeling":
-            case "multishot":
-            case "quick_charge":
-            case "piercing":
-            case "mending":
-            case "vanishing_curse":
-            case "binding_curse":
-                return 3;
-                
-            // 对于未知附魔类型，返回API提供的最大等级
-            default:
-                return enchantment.getMaxLevel();
-        }
+        // 使用 API 提供的真实最大等级，避免给 mending/vanishing_curse 等写入非法等级
+        return Math.max(1, enchantment.getMaxLevel());
     }
     
     /**

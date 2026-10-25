@@ -60,7 +60,12 @@ public class EconomyManager {
         autoSaveTaskId = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             Bukkit.getScheduler().runTask(plugin, this::saveData);
             plugin.getLogger().info("经济数据已自动保存");
-        }, 6000L, 6000L).getTaskId();
+        }, intervalTicks(), intervalTicks()).getTaskId();
+    }
+
+    private long intervalTicks() {
+        long minutes = plugin.getConfig().getLong("system.auto-save-interval", 5);
+        return Math.max(1, minutes) * 60L * 20L;
     }
     
     public void stopAutoSave() {
@@ -79,6 +84,9 @@ public class EconomyManager {
     }
     
     public boolean withdraw(Player player, double amount) {
+        if (!org.ljcode.myPlugin.utils.BankUtils.isValidAmount(amount)) {
+            return false;
+        }
         if (!hasBalance(player, amount)) {
             return false;
         }
@@ -89,11 +97,17 @@ public class EconomyManager {
     }
     
     public void deposit(Player player, double amount) {
+        if (!org.ljcode.myPlugin.utils.BankUtils.isValidAmount(amount)) {
+            return;
+        }
         double currentBalance = getBalance(player);
         balances.put(player.getUniqueId(), currentBalance + amount);
     }
     
     public boolean transfer(Player from, Player to, double amount) {
+        if (!org.ljcode.myPlugin.utils.BankUtils.isValidAmount(amount)) {
+            return false;
+        }
         if (!hasBalance(from, amount)) {
             return false;
         }

@@ -9,9 +9,11 @@ import org.ljcode.myPlugin.gui.ShopGUI;
 
 public class ShopCommand implements CommandExecutor {
 
+    private final MyPlugin plugin;
     private final ShopGUI shopGUI;
 
     public ShopCommand(MyPlugin plugin) {
+        this.plugin = plugin;
         this.shopGUI = new ShopGUI(plugin);
     }
     
@@ -23,6 +25,14 @@ public class ShopCommand implements CommandExecutor {
         }
         
         Player player = (Player) sender;
+        if (!player.hasPermission("essentialsx.shop")) {
+            player.sendMessage("§c你没有权限使用商店!");
+            return true;
+        }
+        if (!plugin.getConfig().getBoolean("economy.enabled", true)) {
+            player.sendMessage("§c经济系统已禁用，商店暂不可用!");
+            return true;
+        }
         shopGUI.openShop(player);
         return true;
     }

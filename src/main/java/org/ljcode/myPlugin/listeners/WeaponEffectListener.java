@@ -9,11 +9,15 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.ljcode.myPlugin.MyPlugin;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 武器效果事件监听器
@@ -29,6 +33,7 @@ public class WeaponEffectListener implements Listener {
     private boolean isFlameBladeEnabled;      // 是否启用火焰刀功能
     private String flameBladeDisplayName;     // 火焰刀的显示名称
     private int magmaDuration;                // 岩浆持续时间（秒）
+    private final Map<Block, Material> pendingLava = new ConcurrentHashMap<>();
     
     /**
      * 构造函数，初始化武器效果监听器
@@ -65,7 +70,7 @@ public class WeaponEffectListener implements Listener {
      * 
      * @param event 实体攻击事件对象
      */
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         // 检查火焰刀功能是否在配置中启用
         if (!isFlameBladeEnabled) {
@@ -94,12 +99,16 @@ public class WeaponEffectListener implements Listener {
                     // 获取被攻击实体的位置
                     Location loc = entity.getLocation();
                     
-                    // 在被攻击实体脚下放置岩浆
+                    // 只在可替换的固体方块上生成岩浆，避免空气/液体中留下悬浮岩浆
                     Block block = loc.getBlock();
-                    Material originalBlock = block.getType(); // 保存原始方块类型以便后续恢复
+                    Material originalBlock = block.getType();
+                    if (originalBlock == Material.LAVA || originalBlock.isAir() || block.isLiquid()) {
+                        return;
+                    }
                     
                     // 将方块设置为岩浆
                     block.setType(Material.LAVA);
+                    pendingLava.put(block, originalBlock);
                     
                     // 创建延时任务，在配置的时间后恢复原始方块
                     int ticks = magmaDuration * 20; // 每秒20ticks，将秒转换为游戏刻度
@@ -111,6 +120,7 @@ public class WeaponEffectListener implements Listener {
                                 // 恢复原始方块类型
                                 block.setType(originalBlock);
                             }
+                            pendingLava.remove(block);
                         }
                     }.runTaskLater(plugin, ticks); // 在指定的游戏刻度后执行恢复任务
                 }
@@ -123,7 +133,16 @@ public class WeaponEffectListener implements Listener {
      * 用于在运行时更新武器效果的配置参数
      */
     public void reloadConfig() {
-        plugin.reloadConfig();  // 重新加载配置文件
         loadConfig();           // 解析并应用新的配置值
+    }
+
+    /** 插件关闭/重载前恢复所有临时岩浆，避免留下永久岩浆。 */
+    public void restoreAll() {
+        for (Map.Entry<Block, Material> entry : pendingLava.entrySet()) {
+            if (entry.getKey().getType() == Material.LAVA) {
+                entry.getKey().setType(entry.getValue());
+            }
+        }
+        pendingLava.clear();
     }
 }

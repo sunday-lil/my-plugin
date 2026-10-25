@@ -1,6 +1,7 @@
 package org.ljcode.myPlugin.listeners;
 
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.ljcode.myPlugin.MyPlugin;
@@ -13,12 +14,10 @@ public class TeleportListener implements Listener {
         this.plugin = plugin;
     }
     
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerTeleport(PlayerTeleportEvent event) {
-        // 可以在这里添加传送相关的逻辑
-        // 例如：传送冷却时间、传送费用等
-        
-        // 记录传送前的最后一个位置
+        // 记录非插件传送（末影珍珠、传送门等）的起点，供 /eback 使用。
+        // 插件传送由 TeleportManager.teleport 统一记录，避免把目标点记成起点。
         if (event.getCause() != PlayerTeleportEvent.TeleportCause.PLUGIN) {
             plugin.getTeleportManager().setLastLocation(event.getPlayer(), event.getFrom());
         }

@@ -1,17 +1,33 @@
 package org.ljcode.myPlugin.listeners;
 
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.ljcode.myPlugin.MyPlugin;
 
 public class ParticleTrailListener implements Listener {
 
-    @EventHandler
+    private final MyPlugin plugin;
+
+    public ParticleTrailListener(MyPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @EventHandler(ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
+        if (!plugin.getConfig().getBoolean("gameplay.particle-trail.enabled", true)) {
+            return;
+        }
+
         Player player = event.getPlayer();
+        if (player.getGameMode() == GameMode.SPECTATOR) {
+            return;
+        }
+
         Location from = event.getFrom();
         Location to = event.getTo();
         

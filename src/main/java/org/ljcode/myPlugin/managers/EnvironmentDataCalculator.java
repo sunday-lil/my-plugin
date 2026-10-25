@@ -34,17 +34,18 @@ public class EnvironmentDataCalculator {
         Location loc = player.getLocation();
         World world = player.getWorld();
 
-        data.put("temperature", calculateTemperature(loc, world));
-        data.put("humidity", calculateHumidity(loc, world));
+        // 湿度只计算一次，供温度体感修正复用，避免重复扫描水体方块
+        double humidity = calculateHumidity(loc, world);
+        data.put("temperature", calculateTemperature(loc, world, humidity));
+        data.put("humidity", humidity);
         data.put("light", calculateLightLevel(loc, world));
         data.put("wind_speed", calculateWindSpeed(loc, world));
-        data.put("resources", calculateResourceRatio(loc, world));
         data.put("player_x", loc.getBlockX());
         data.put("player_y", loc.getBlockY());
         data.put("player_z", loc.getBlockZ());
         data.put("world_name", world.getName());
         data.put("world_time", world.getTime());
-        data.put("weather", world.hasStorm() ? "storm" : (world.isThundering() ? "thunder" : "clear"));
+        data.put("weather", world.isThundering() ? "thunder" : (world.hasStorm() ? "storm" : "clear"));
         data.put("biome", loc.getBlock().getBiome().name());
 
         return data;
@@ -57,6 +58,13 @@ public class EnvironmentDataCalculator {
      * @return 温度值（摄氏度，范围-30到60）
      */
     public double calculateTemperature(Location loc, World world) {
+        return calculateTemperature(loc, world, calculateHumidity(loc, world));
+    }
+
+    /**
+     * 计算温度，复用调用方已经算好的湿度，避免重复扫描。
+     */
+    private double calculateTemperature(Location loc, World world, double humidity) {
         Block block = loc.getBlock();
         Biome biome = block.getBiome();
         double baseTemp = getBiomeTemperature(biome);
@@ -86,7 +94,6 @@ public class EnvironmentDataCalculator {
         temperature += calculateWindChillEffect(temperature, windSpeed);
 
         // 8. 湿度影响（高湿度影响体感温度）
-        double humidity = calculateHumidity(loc, world);
         temperature += calculateHumidityEffect(temperature, humidity);
 
         // 9. 世界环境调整
@@ -247,7 +254,10 @@ public class EnvironmentDataCalculator {
                     Material type = nearbyBlock.getType();
 
                     // 计算距离衰减
-                    double distance = Math.sqrt(Math.pow(x - cx, 2) + Math.pow(y - cy, 2) + Math.pow(z - cz, 2));
+                    int dx = x - cx;
+                    int dy = y - cy;
+                    int dz = z - cz;
+                    double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
                     if (distance == 0) continue; // 跳过玩家所在位置（已处理）
                     double distanceFactor = 1.0 / distance;
 
@@ -436,88 +446,6 @@ public class EnvironmentDataCalculator {
         windSpeed = Math.max(0, Math.min(30, windSpeed));
 
         return Math.round(windSpeed * 10.0) / 10.0;
-    }
-
-    /**
-     * 计算周围资源占比
-     * @param loc 位置
-     * @param world 世界
-     * @return 资源占比数据
-     */
-    public Map<String, Double> calculateResourceRatio(Location loc, World world) {
-        Map<String, Integer> resourceCounts = new HashMap<>();
-        int totalBlocks = 0;
-
-        int startX = loc.getBlockX() - scanRadius;
-        int startY = Math.max(0, loc.getBlockY() - heightRange);
-        int endY = Math.min(world.getMaxHeight() - 1, loc.getBlockY() + heightRange);
-        int startZ = loc.getBlockZ() - scanRadius;
-
-        for (int x = startX; x <= startX + scanRadius * 2; x += 2) {
-            for (int y = startY; y <= endY; y += 2) {
-                for (int z = startZ; z <= startZ + scanRadius * 2; z += 2) {
-                    Block block = world.getBlockAt(x, y, z);
-                    Material type = block.getType();
-
-                    if (type != Material.AIR && type != Material.CAVE_AIR && type != Material.VOID_AIR) {
-                        totalBlocks++;
-                        String category = categorizeMaterial(type);
-                        resourceCounts.merge(category, 1, (a, b) -> Integer.sum(a, b));
-                    }
-                }
-            }
-        }
-
-        Map<String, Double> ratios = new HashMap<>();
-        if (totalBlocks > 0) {
-            for (Map.Entry<String, Integer> entry : resourceCounts.entrySet()) {
-                double ratio = (entry.getValue() * 100.0) / totalBlocks;
-                ratios.put(entry.getKey(), Math.round(ratio * 10.0) / 10.0);
-            }
-        }
-
-        return ratios;
-    }
-
-    /**
-     * 将材料分类
-     * @param material 材料类型
-     * @return 分类名称
-     */
-    private String categorizeMaterial(Material material) {
-        String name = material.name();
-
-        if (name.contains("ORE") || name.contains("DIAMOND") || name.contains("EMERALD") ||
-            name.contains("GOLD") || name.contains("IRON") || name.contains("COAL") ||
-            name.contains("REDSTONE") || name.contains("LAPIS") || name.contains("COPPER") ||
-            name.contains("QUARTZ") || name.contains("ANCIENT_DEBRIS")) {
-            return "ores";
-        }
-        if (name.contains("STONE") || name.contains("COBBLESTONE") || name.contains("GRAVEL") ||
-            name.contains("SAND") || name.contains("DIRT") || name.contains("GRASS") ||
-            name.contains("BEDROCK") || name.contains("NETHERRACK") || name.contains("END_STONE")) {
-            return "building";
-        }
-        if (name.contains("LOG") || name.contains("WOOD") || name.contains("LEAVES") ||
-            name.contains("PLANKS") || name.contains("SAPLING") || name.contains("WART")) {
-            return "wood";
-        }
-        if (name.contains("WATER") || name.contains("LAVA") || name.contains("ICE") ||
-            name.contains("SNOW") || name.contains("FROSTED")) {
-            return "liquid";
-        }
-        if (name.contains("FLOWER") || name.contains("GRASS") || name.contains("FERN") ||
-            name.contains("MUSHROOM") || name.contains("CROP") || name.contains("PLANT") ||
-            name.contains("CACTUS") || name.contains("BAMBOO") || name.contains("SUGAR_CANE")) {
-            return "plants";
-        }
-        if (name.contains("CHEST") || name.contains("BARREL") || name.contains("SHULKER") ||
-            name.contains("FURNACE") || name.contains("BLAST_FURNACE") || name.contains("SMOKER") ||
-            name.contains("BREWING_STAND") || name.contains("ANVIL") || name.contains("CRAFTING")) {
-            return "utility";
-        }
-
-        return "other";
     }
 
     /**

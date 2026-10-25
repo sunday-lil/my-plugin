@@ -32,8 +32,13 @@ public class WarpCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!plugin.getConfig().getBoolean("warps.enabled", true)) {
+            player.sendMessage(ChatColor.RED + "传送点系统已禁用!");
+            return true;
+        }
+        
         if (args.length == 0) {
-            player.sendMessage(ChatColor.RED + "用法: /setwarp <名称>");
+            player.sendMessage(ChatColor.RED + "用法: /esetwarp <名称>");
             return true;
         }
         
@@ -42,7 +47,14 @@ public class WarpCommand implements CommandExecutor {
             return true;
         }
         
-        String warpName = args[0].toLowerCase();
+        String warpName = args[0].toLowerCase(java.util.Locale.ROOT);
+        int maxWarps = plugin.getConfig().getInt("warps.max-warps", 5);
+        if (!plugin.getWarpManager().warpExists(warpName)
+                && plugin.getWarpManager().getWarpNames().size() >= maxWarps
+                && !player.hasPermission("essentialsx.admin")) {
+            player.sendMessage(ChatColor.RED + "传送点数量已达上限 (" + maxWarps + ")!");
+            return true;
+        }
         
         if (plugin.getWarpManager().setWarp(warpName, player.getLocation())) {
             player.sendMessage(ChatColor.GREEN + "传送点 '" + warpName + "' 设置成功!");
@@ -61,6 +73,11 @@ public class WarpCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!plugin.getConfig().getBoolean("warps.enabled", true)) {
+            player.sendMessage(ChatColor.RED + "传送点系统已禁用!");
+            return true;
+        }
+        
         if (args.length == 0) {
             // 显示所有传送点
             var warpNames = plugin.getWarpManager().getWarpNames();
@@ -77,7 +94,7 @@ public class WarpCommand implements CommandExecutor {
             return true;
         }
         
-        String warpName = args[0].toLowerCase();
+        String warpName = args[0].toLowerCase(java.util.Locale.ROOT);
         
         var warpLocation = plugin.getWarpManager().getWarp(warpName);
         if (warpLocation == null) {
@@ -85,12 +102,10 @@ public class WarpCommand implements CommandExecutor {
             return true;
         }
         
-        // 保存当前位置
-        plugin.getTeleportManager().setLastLocation(player, player.getLocation());
-        
-        // 传送到传送点
-        player.teleport(warpLocation);
-        player.sendMessage(ChatColor.GREEN + "已传送到传送点 '" + warpName + "'!");
+        // 保存当前位置并传送（统一冷却/安全检查）
+        if (plugin.getTeleportManager().teleport(player, warpLocation)) {
+            player.sendMessage(ChatColor.GREEN + "已传送到传送点 '" + warpName + "'!");
+        }
         
         return true;
     }

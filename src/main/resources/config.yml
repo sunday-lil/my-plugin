@@ -17,6 +17,8 @@ k10:
   player-events-enabled: true
   # 是否启用聊天事件监听
   chat-events-enabled: true
+  # 是否输出每条K10消息/响应的详细日志（排障用，默认关闭避免刷屏）
+  debug-mode: false
 
 # 环境数据系统设置（v1.2.0 聚合报告模式）
 environment:
@@ -77,10 +79,6 @@ economy:
   enabled: true
   # 玩家初始资金
   starting-balance: 100.0
-  # 货币单位符号
-  currency-symbol: "$"
-  # 小数位数
-  decimal-places: 2
 
 # 银行系统设置（独立于钱包，数据存于 bank.yml）
 bank:
@@ -101,8 +99,6 @@ homes:
   max-homes: 5
   # 拥有特定权限的玩家家园数量上限
   max-homes-with-permission: 10
-  # 家园传送冷却时间（秒）
-  teleport-cooldown: 5
 
 # 传送点系统设置
 warps:
@@ -163,7 +159,7 @@ chat:
   # 聊天提示功能设置
   hints:
     # 是否启用聊天提示功能
-    hints-enabled: true
+    enabled: true
     # 是否启用表情符号自动转换
     emoji-conversion: true
     # 是否启用命令建议提示
@@ -189,6 +185,8 @@ chat:
 join-message:
   # 服务器名称（用于变量替换）
   server-name: "geek服务器"
+  # 消息前缀
+  prefix: "&6[EssentialsX]&r "
   # 是否启用登录消息系统
   enabled: true
 
@@ -273,20 +271,17 @@ profanity-filter:
   kick-message: "&c由于多次发送不当言论，您已被踢出服务器！请注意网络礼仪！"
   # 脏话词库（支持中文和英文）
   profanity-list:
-    # 中文脏话词汇
+    # 中文脏话词汇（避免单字，减少“草莓/妈妈/操作”等误伤）
     chinese:
-      - "草"
-      - "操"
-      - "妈"
-      - "逼"
-      - "滚"
-      - "滚蛋"
-      - "去死"
-      - "sb"
       - "傻逼"
-      - "废物"
+      - "去死"
+      - "滚蛋"
       - "混蛋"
+      - "废物"
       - "笨蛋"
+      - "妈的"
+      - "他妈"
+      - "操你"
     # 英文脏话词汇
     english:
       - "fuck"
@@ -297,7 +292,6 @@ profanity-filter:
       - "stupid"
       - "idiot"
       - "bastard"
-      - "dumb"
 
 # 特殊物品系统设置
 special-items:
@@ -337,6 +331,10 @@ announcements:
   bossbar:
     # 是否启用BossBar功能
     enabled: true
+    # BossBar 颜色（BLUE/GREEN/PINK/PURPLE/RED/WHITE/YELLOW）
+    color: "BLUE"
+    # BossBar 样式（SOLID/SEGMENTED_6/SEGMENTED_10/SEGMENTED_12/SEGMENTED_20）
+    style: "SOLID"
     messages:
       - "&6&l服务器公告 - 欢迎所有玩家！"
       - "&c&l重要通知：请遵守服务器规则"
@@ -347,19 +345,23 @@ announcements:
   # 消息轮播间隔（秒）
   interval: 60
 
-# 权限设置
-permissions:
-  # 默认权限组标识
-  default-group: "default"
-  # 管理员权限组标识
-  admin-group: "admin"
-
 # 系统设置
 system:
-  # 是否启用调试模式
-  debug-mode: false
   # 数据自动保存间隔（分钟）
-  auto-save-interval: 30
+  auto-save-interval: 5
+
+# 游戏玩法设置
+gameplay:
+  auto-pickup:
+    # 方块破坏后是否自动把掉落物放进背包（放不下才掉在原地）
+    enabled: true
+  particle-trail:
+    # 是否给移动中的玩家生成火焰粒子
+    enabled: true
+
+# 更新检查（读取 GitHub Releases）
+update-check:
+  enabled: true
 
 # 聊天格式化设置
 chat-format:
@@ -398,10 +400,6 @@ chat-format:
   actionbar-notification:
     # 消息截断长度
     message-truncate-length: 20
-    # 标题显示时间（tick）
-    title-fade-in: 0
-    title-stay: 40
-    title-fade-out: 10
 
 # 聊天提示设置
 chat-hints:

@@ -24,6 +24,11 @@ public class HomeCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!plugin.getConfig().getBoolean("homes.enabled", true)) {
+            player.sendMessage(ChatColor.RED + "家园系统已禁用!");
+            return true;
+        }
+        
         if (label.equalsIgnoreCase("esethome")) {
             return handleSetHome(player, args);
         } else {
@@ -34,7 +39,7 @@ public class HomeCommand implements CommandExecutor {
     private boolean handleSetHome(Player player, String[] args) {
         String homeName = "home";
         if (args.length > 0) {
-            homeName = args[0].toLowerCase();
+            homeName = args[0].toLowerCase(java.util.Locale.ROOT);
         }
         
         if (!player.hasPermission("essentialsx.home.set")) {
@@ -54,7 +59,7 @@ public class HomeCommand implements CommandExecutor {
     private boolean handleHome(Player player, String[] args) {
         String homeName = "home";
         if (args.length > 0) {
-            homeName = args[0].toLowerCase();
+            homeName = args[0].toLowerCase(java.util.Locale.ROOT);
         }
         
         if (!player.hasPermission("essentialsx.home.teleport")) {
@@ -68,12 +73,10 @@ public class HomeCommand implements CommandExecutor {
             return true;
         }
         
-        // 保存当前位置
-        plugin.getTeleportManager().setLastLocation(player, player.getLocation());
-        
-        // 传送回家
-        player.teleport(homeLocation);
-        player.sendMessage(ChatColor.GREEN + "已传送回家 '" + homeName + "'!");
+        // 保存当前位置并传送（统一冷却/安全检查）
+        if (plugin.getTeleportManager().teleport(player, homeLocation)) {
+            player.sendMessage(ChatColor.GREEN + "已传送回家 '" + homeName + "'!");
+        }
         
         return true;
     }

@@ -136,6 +136,13 @@ public class ShopManager {
     public void loadData() {
         loadShopItems();
     }
+
+    /** 配置热重载：清空旧商品与库存后重新读取。 */
+    public void reload() {
+        shopItems.clear();
+        globalStock.clear();
+        loadShopItems();
+    }
     
     public static class ShopItem {
         private final String key;

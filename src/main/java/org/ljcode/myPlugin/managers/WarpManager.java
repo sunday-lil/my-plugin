@@ -25,7 +25,12 @@ public class WarpManager {
     
     public void loadData() {
         if (!dataFile.exists()) {
-            plugin.saveResource("warps.yml", false);
+            try {
+                dataFile.getParentFile().mkdirs();
+                dataFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Could not create warps data file: " + e.getMessage());
+            }
         }
         
         if (dataConfig.contains("warps")) {

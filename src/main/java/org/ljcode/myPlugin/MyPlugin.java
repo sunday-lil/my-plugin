@@ -44,6 +44,13 @@ public final class MyPlugin extends JavaPlugin {
     private DigitalCityListener digitalCityListener;          // 数字城市事件监听器
     private HouseholdManager householdManager;                // 住户结构扫描管理器
 
+    // 需要跨命令/监听器复用或热重载的共享实例
+    private PlayerListener playerListener;                    // 玩家监听器（同时处理 /etpaccept、/etpdeny）
+    private SpawnCommand spawnCommand;                        // 出生点命令（espawn/esetspawn 必须共用同一实例）
+    private HelpMessageListener helpMessageListener;          // 进服指南与 /ehelp 共用
+    private ProfanityFilterListener profanityFilterListener;  // 脏话过滤（支持热重载）
+    private WeaponEffectListener weaponEffectListener;        // 火焰刀效果（支持热重载）
+
     /**
      * 插件启用时调用的方法
      * 初始化所有管理器、注册命令和监听器，并启动定时任务
@@ -86,8 +93,8 @@ public final class MyPlugin extends JavaPlugin {
 
                 // 设置K10响应回调
                 k10TCPManager.setResponseCallback(responseData -> {
-                    if (responseData.containsKey("request_id")) {
-                        String requestId = (String) responseData.get("request_id");
+                    Object requestIdObj = responseData.get("request_id");
+                    if (requestIdObj instanceof String requestId && !requestId.isEmpty()) {
                         environmentDataScheduler.handleK10Response(requestId, responseData);
                     } else {
                         environmentDataReceiver.processResponse(responseData);
@@ -230,6 +237,11 @@ public final class MyPlugin extends JavaPlugin {
             getLogger().info("[住户扫描] 已关闭");
         }
 
+        // 恢复火焰刀留下的临时岩浆
+        if (weaponEffectListener != null) {
+            weaponEffectListener.restoreAll();
+        }
+
         // 关闭行空板K10数字孪生系统
         if (k10TCPManager != null) {
             k10TCPManager.shutdown();
@@ -254,8 +266,10 @@ public final class MyPlugin extends JavaPlugin {
         getCommand("esethome").setExecutor(new HomeCommand(this));          // 设置家
         getCommand("ewarp").setExecutor(new WarpCommand(this));             // 传送到传送点
         getCommand("esetwarp").setExecutor(new WarpCommand(this));          // 设置传送点
-        getCommand("espawn").setExecutor(new SpawnCommand(this));           // 传送到出生点
-        getCommand("esetspawn").setExecutor(new SpawnCommand(this));        // 设置出生点
+        // 传送点系统命令
+        spawnCommand = new SpawnCommand(this);
+        getCommand("espawn").setExecutor(spawnCommand);                     // 传送到出生点
+        getCommand("esetspawn").setExecutor(spawnCommand);                  // 设置出生点
         getCommand("eback").setExecutor(new BackCommand(this));             // 传送到上一个位置
 
         // 玩家控制命令（使用'e'前缀避免与其他插件冲突）
@@ -286,8 +300,9 @@ public final class MyPlugin extends JavaPlugin {
         getCommand("eanbossbar").setExecutor(new AnnouncementCommand(this)); // 发送BossBar公告
 
         // 传送请求命令（使用'e'前缀避免与其他插件冲突）
-        getCommand("etpaccept").setExecutor(new PlayerListener(this));      // 接受传送请求
-        getCommand("etpdeny").setExecutor(new PlayerListener(this));        // 拒绝传送请求
+        playerListener = new PlayerListener(this);
+        getCommand("etpaccept").setExecutor(playerListener);                // 接受传送请求
+        getCommand("etpdeny").setExecutor(playerListener);                  // 拒绝传送请求
 
         // 自定义特殊命令
         getCommand("e12503").setExecutor(new AttackCommand(this));          // 自定义攻击力指令
@@ -303,7 +318,7 @@ public final class MyPlugin extends JavaPlugin {
         getCommand("menu").setExecutor(menuCommand);                        // 超级控制中心菜单指令
 
         // 悬浮文字命令
-        holoCommand = new HoloCommand();
+        holoCommand = new HoloCommand(this);
         getCommand("holo").setExecutor(holoCommand);                        // 悬浮文字指令
     }
 
@@ -314,7 +329,10 @@ public final class MyPlugin extends JavaPlugin {
      */
     private void registerListeners() {
         // 玩家事件监听器：处理玩家加入、离开等事件
-        getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        if (playerListener == null) {
+            playerListener = new PlayerListener(this);
+        }
+        getServer().getPluginManager().registerEvents(playerListener, this);
 
         // 传送事件监听器：处理玩家传送相关事件
         getServer().getPluginManager().registerEvents(new TeleportListener(this), this);
@@ -323,19 +341,22 @@ public final class MyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JoinMessageListener(this), this);
 
         // 武器效果监听器：处理特殊武器（如火焰刀）的攻击效果
-        getServer().getPluginManager().registerEvents(new WeaponEffectListener(this), this);
+        weaponEffectListener = new WeaponEffectListener(this);
+        getServer().getPluginManager().registerEvents(weaponEffectListener, this);
 
         // 脏话过滤监听器：检测并处理玩家聊天中的不当言论
-        getServer().getPluginManager().registerEvents(new ProfanityFilterListener(this), this);
+        profanityFilterListener = new ProfanityFilterListener(this);
+        getServer().getPluginManager().registerEvents(profanityFilterListener, this);
 
-        // 帮助消息监听器：在玩家加入时发送帮助信息
-        getServer().getPluginManager().registerEvents(new HelpMessageListener(this), this);
+        // 帮助消息监听器：在玩家加入时发送帮助信息（与 /ehelp 共用实例）
+        helpMessageListener = new HelpMessageListener(this);
+        getServer().getPluginManager().registerEvents(helpMessageListener, this);
+
+        // 聊天提示监听器：先做表情转换，再交给 ChatFormat 渲染
+        getServer().getPluginManager().registerEvents(new ChatHintListener(this), this);
 
         // 聊天格式化监听器：处理玩家聊天消息的格式化和美化
         getServer().getPluginManager().registerEvents(new ChatFormatListener(this), this);
-
-        // 聊天提示监听器：提供智能提示、表情转换、命令建议等功能
-        getServer().getPluginManager().registerEvents(new ChatHintListener(this), this);
 
         // 方块破坏监听器：处理方块破坏事件，实现自动拾取功能
         getServer().getPluginManager().registerEvents(new org.ljcode.myPlugin.listeners.BlockBreakListener(this), this);
@@ -344,7 +365,7 @@ public final class MyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(updateCheckerListener, this);
 
         // 粒子拖尾监听器：监听玩家移动并生成火焰粒子
-        getServer().getPluginManager().registerEvents(new ParticleTrailListener(), this);
+        getServer().getPluginManager().registerEvents(new ParticleTrailListener(this), this);
 
         // 菜单监听器：处理超级控制中心菜单的点击事件
         getServer().getPluginManager().registerEvents(menuCommand.getMenuListener(), this);
@@ -444,6 +465,60 @@ public final class MyPlugin extends JavaPlugin {
 
     public HouseholdManager getHouseholdManager() {
         return householdManager;
+    }
+
+    public HelpMessageListener getHelpMessageListener() {
+        return helpMessageListener;
+    }
+
+    /**
+     * 热重载所有可热重载的配置。
+     *
+     * 说明：Web 端口、已创建的管理器实例等无法在不重启的情况下替换；
+     * 调度周期会通过停止/重新启动任务生效。
+     */
+    public void reloadAll() {
+        reloadConfig();
+        syncK10Config();
+
+        if (announcementManager != null) {
+            announcementManager.reloadConfig();
+        }
+        if (announcementScheduler != null) {
+            announcementScheduler.stopScheduling();
+            announcementScheduler.startScheduling();
+        }
+        if (shopManager != null) {
+            shopManager.reload();
+        }
+        if (economyManager != null) {
+            economyManager.stopAutoSave();
+            economyManager.startAutoSave();
+        }
+        if (profanityFilterListener != null) {
+            profanityFilterListener.reloadConfig();
+        }
+        if (weaponEffectListener != null) {
+            weaponEffectListener.reloadConfig();
+        }
+
+        boolean environmentEnabled = getConfig().getBoolean("environment.enabled", true);
+        if (environmentDataScheduler != null) {
+            environmentDataScheduler.reloadConfig();
+            environmentDataScheduler.stop();
+            if (environmentEnabled && k10TCPManager != null) {
+                environmentDataScheduler.start();
+            }
+        }
+
+        if (digitalCityManager != null) {
+            digitalCityManager.reloadConfig();
+        }
+        if (householdManager != null) {
+            householdManager.reload();
+        }
+
+        getLogger().info("[重载] 配置已重新加载（Web 端口等启动参数需重启服务器才能生效）");
     }
 
     /**

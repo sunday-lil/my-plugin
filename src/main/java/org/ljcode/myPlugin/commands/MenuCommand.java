@@ -320,8 +320,8 @@ public class MenuCommand implements CommandExecutor {
     
     private void updateAllMenus() {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.getOpenInventory() != null && 
-                player.getOpenInventory().getTitle().startsWith("§l超级控制中心")) {
+            if (player.getOpenInventory() != null
+                    && player.getOpenInventory().getTitle().contains("超级控制中心")) {
                 Inventory inv = player.getOpenInventory().getTopInventory();
                 fillBorder(inv);
                 player.updateInventory();

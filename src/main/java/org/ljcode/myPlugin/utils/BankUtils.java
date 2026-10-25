@@ -11,11 +11,32 @@ public class BankUtils {
     
     public static boolean isValidAmount(String amountStr) {
         try {
-            double amount = Double.parseDouble(amountStr);
-            return isValidAmount(amount);
+            return isValidAmount(parseAmount(amountStr));
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    /**
+     * 解析金额，并拒绝 NaN、Infinity、负数和 0。
+     *
+     * @throws NumberFormatException 金额非法
+     */
+    public static double parseAmount(String amountStr) {
+        double amount = Double.parseDouble(amountStr);
+        if (!isValidAmount(amount)) {
+            throw new NumberFormatException("Invalid amount: " + amountStr);
+        }
+        return amount;
+    }
+
+    /** 解析允许为 0 的金额（用于 /eco set），仍然拒绝 NaN/Infinity/负数。 */
+    public static double parseNonNegativeAmount(String amountStr) {
+        double amount = Double.parseDouble(amountStr);
+        if (amount < 0 || Double.isNaN(amount) || Double.isInfinite(amount)) {
+            throw new NumberFormatException("Invalid amount: " + amountStr);
+        }
+        return amount;
     }
     
     public static String formatAmount(double amount) {

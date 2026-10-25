@@ -43,17 +43,12 @@ public class AnnouncementCommand implements CommandExecutor {
             return true;
         }
 
-        plugin.reloadConfig();
-        announcementManager.reloadConfig();
-
-        // 重新加载K10数字孪生系统配置（含监听器配置引用同步）
-        if (plugin.getK10TCPManager() != null) {
-            plugin.syncK10Config();
-            sender.sendMessage("§a[K10数字孪生] 配置已重新加载 - 新目标: " +
-                plugin.getK10TCPManager().getCurrentHost());
-        }
-
+        plugin.reloadAll();
         sender.sendMessage("§a公告插件配置已重新加载！");
+        if (plugin.getK10TCPManager() != null) {
+            sender.sendMessage("§a[K10数字孪生] 当前目标: " + plugin.getK10TCPManager().getCurrentHost()
+                    + ":" + plugin.getK10TCPManager().getCurrentPort());
+        }
         return true;
     }
 

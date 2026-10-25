@@ -26,6 +26,11 @@ public class TeleportRequestCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!player.hasPermission("essentialsx.tp")) {
+            player.sendMessage(ChatColor.RED + "你没有权限发送传送请求!");
+            return true;
+        }
+        
         if (args.length == 0) {
             player.sendMessage(ChatColor.RED + "用法: /" + label + " <玩家>");
             return true;
@@ -47,10 +52,14 @@ public class TeleportRequestCommand implements CommandExecutor {
         // 发送传送请求
         plugin.getTeleportManager().addTeleportRequest(player, target, isToPlayer);
         
-        String requestType = isToPlayer ? "传送到你这里" : "传送到他那里";
+        String requestType = isToPlayer ? "请求对方传送到你这里" : "请求传送到对方那里";
         player.sendMessage(ChatColor.GREEN + "已向 " + target.getName() + " 发送传送请求 (" + requestType + ")");
-        target.sendMessage(ChatColor.YELLOW + player.getName() + " 请求传送到你这里!");
-        target.sendMessage(ChatColor.YELLOW + "输入 /tpaccept 接受 或 /tpdeny 拒绝");
+        if (isToPlayer) {
+            target.sendMessage(ChatColor.YELLOW + player.getName() + " 请求你传送到他那里!");
+        } else {
+            target.sendMessage(ChatColor.YELLOW + player.getName() + " 请求传送到你这里!");
+        }
+        target.sendMessage(ChatColor.YELLOW + "输入 /etpaccept 接受 或 /etpdeny 拒绝");
         
         return true;
     }

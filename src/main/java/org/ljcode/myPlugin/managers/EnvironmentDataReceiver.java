@@ -49,11 +49,27 @@ public class EnvironmentDataReceiver {
         lastReceivedTime = System.currentTimeMillis();
 
         try {
-            String responseType = (String) responseData.getOrDefault("response_type", "unknown");
+            String responseType = (String) responseData.getOrDefault("response_type", "");
             lastReceivedType = responseType;
 
             if (config.getBoolean("environment.debug-mode", false)) {
                 Bukkit.getLogger().info("[环境数据接收器] 处理响应类型: " + responseType);
+            }
+
+            // 固件对 CITY_* / 传统事件只回 {"status":"ok"}，没有 response_type。
+            // 这类回执是正常的 ACK，不应再刷“未知响应类型”告警。
+            if (responseType.isEmpty()) {
+                if (responseData.containsKey("error_code")) {
+                    handleError(responseData);
+                } else if ("ok".equals(String.valueOf(responseData.get("status")))
+                        || Boolean.TRUE.equals(responseData.get("deprecated"))) {
+                    handleAcknowledgment(responseData);
+                } else {
+                    Bukkit.getLogger().warning("[环境数据接收器] 未知响应类型: " + responseData);
+                    handleUnknownResponse(responseData);
+                }
+                processedCount++;
+                return;
             }
 
             switch (responseType) {
@@ -80,9 +96,12 @@ public class EnvironmentDataReceiver {
 
             processedCount++;
 
-            if (responseData.containsKey("request_id")) {
-                String requestId = (String) responseData.get("request_id");
+            if (responseData.get("request_id") instanceof String requestId && !requestId.isEmpty()) {
                 dataTimestamps.put(requestId, System.currentTimeMillis());
+                if (dataTimestamps.size() > 512) {
+                    dataTimestamps.clear();
+                    dataTimestamps.put(requestId, System.currentTimeMillis());
+                }
             }
 
         } catch (Exception e) {
@@ -101,9 +120,9 @@ public class EnvironmentDataReceiver {
         String status = (String) data.getOrDefault("status", "unknown");
         String message = (String) data.getOrDefault("message", "");
 
-        if ("success".equals(status)) {
+        if ("success".equals(status) || "ok".equals(status)) {
             if (config.getBoolean("environment.debug-mode", false)) {
-                Bukkit.getLogger().info("[环境数据接收器] 请求成功确认: " + requestId);
+                Bukkit.getLogger().info("[环境数据接收器] 请求成功确认: " + (requestId == null ? "无 request_id" : requestId));
             }
         } else {
             Bukkit.getLogger().warning("[环境数据接收器] 请求失败: " + requestId + " - " + message);

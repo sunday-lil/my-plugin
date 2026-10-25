@@ -7,6 +7,66 @@
 
 ---
 
+## [1.3.0] - 2026-10-25
+
+### 🔧 修复 (Fixed)
+
+#### 启动与数据
+- 🐛 **全新数据目录首次启动失败** - `WarpManager`/`TeleportManager` 对缺失的 `warps.yml`/`teleport.yml` 调用 `saveResource` 会抛 `IllegalArgumentException`；现改为安全创建，并随 JAR 提供这两个资源
+- 🐛 **出生点双实例** - `espawn`/`esetspawn` 共用同一个 `SpawnCommand`，设置后立即生效
+- 🐛 **配置死键** - 实现 `player-commands.*`、`economy.enabled`、`homes.enabled`、`warps.enabled/max-warps`、`teleport.enabled/cooldown/safety-check`、`chat.color-enabled`、`system.auto-save-interval` 等读取
+- 🐛 **时间分段路径** - `debug-info.time-segments.dawn[0]` 改为合法的 `dawn.0`
+
+#### K10 / 数字城市
+- 🐛 **回执误报** - 城市/传统事件的裸 `{"status":"ok"}` 现在按正常 ACK 处理，不再每条回执刷“未知响应类型”
+- 🐛 **仪表盘 2KB 静默丢弃** - 固件 `processCityDashboardData` 改为一次 16KB 解析；`handleCityEvent`/`extractJsonObject` 容量参数化；插件侧移除固件未消费的 `recent_events`
+- 🐛 **K10 队列丢唤醒** - 处理线程退出后重新检查队列；节流状态加锁，避免异步聊天并发穿透
+- 🐛 **日志降噪** - 每条消息的入队/成功日志默认降为 FINE，`k10.debug-mode: true` 时恢复
+- 🐛 **城市状态陈旧** - 每帧仪表盘重算状态；当日死亡数/峰值按天重置，避免累计死亡永久 CRITICAL
+
+#### 命令/经济/保护
+- 🐛 **/egm 不可用** - 参数改为 `<模式> [玩家]`，支持 `/gamemode` 别名；权限/开关按命令名解析
+- 🐛 **/eco 无法识别** - 修复 `eco` 被误去首字母 `e` 的问题
+- 🐛 **NaN/Infinity 注入** - 金额解析统一走 `BankUtils.parseAmount`，拒绝非有限值；银行/钱包/商店同步校验
+- 🐛 **/back 记错人/方向反** - 接受传送请求时按 `isToPlayer` 正确选择移动者；插件传送统一记录起点
+- 🐛 **菜单/商店点击自己背包** - 只处理 GUI 顶层物品，点击玩家背包不再触发治疗/买卖
+- 🐛 **方块破坏复制/保护绕过** - 使用 HIGHEST + ignoreCancelled，按工具计算掉落，只掉落放不下的部分，创造模式跳过
+- 🐛 **火焰刀岩浆残留** - 只在固体方块上生成，忽略已取消伤害；额外伤害只由物品属性提供一次
+- 🐛 **商店扣款丢货** - 背包放不下时退款；Shift 右键只卖背包存储区，不卖盔甲
+- 🐛 **悬浮文字泄漏** - 在线人数/跟随任务退出自动清理；改用共享插件实例，取消反射清理与 null 插件风险
+- 🐛 **核弹风暴** - 粒子 100→48、TNT 10→6，增加 60 秒冷却
+
+#### 聊天/欢迎
+- 🐛 **脏话消息外泄** - K10/数字城市/格式化监听器加 `ignoreCancelled`，被过滤的消息不再发往设备/统计
+- 🐛 **表情转换无效** - ChatHint 现在真正 `setMessage`，并先于 ChatFormat 注册；配置键修正为 `chat.hints.*`
+- 🐛 **异步发包** - 聊天动作栏统一调度回主线程；欢迎动作栏改用真正的 ActionBar，不再覆盖标题
+- 🐛 **欢迎指南重复** - 只保留 HelpMessageListener 一份；`%join_count%`/`%total_players_today%`/`%uptime%` 改为真实统计
+- 🐛 **配置热重载** - `/eanreload` 与 Web 保存统一调用 `reloadAll()`，重启调度器、刷新缓存配置
+
+#### Web
+- 🐛 **保存 500** - NanoHTTPD 的 JSON body 存在 `files["postData"]`，不再当作临时文件路径读取
+- 🐛 **面板重写** - 自动 GET `/api/config`，支持 K10/环境/数字城市等全部主要配置；修复布尔值 `||` 误判、数组编辑、重置按钮
+- 🐛 **线程安全** - 保存后通过 `callSyncMethod` 回主线程重载
+
+### ⚡ 优化 (Changed)
+- 环境采集：去掉从未上屏的 `resources` 统计，湿度只算一次，减少约 1/3 方块扫描
+- 住户扫描：只统计床头、只统计门下半部分，避免一张床算两户
+- K10：队列/节流/关服保护，`sendMessageAsync` 返回是否成功入队；环境统计区分“入队/确认”
+- 更新检查：从假地址改为 GitHub Releases，支持 `update-check.enabled`
+- 配置：移除 6 组无效键；BossBar 颜色/样式、`join-message.prefix`、`gameplay.*` 等落入配置
+- 测试：新增 JUnit 5 与 4 个真实测试（金额校验、版本比较）
+
+### ⚠️ 不兼容 (Breaking)
+- `chat.hints.hints-enabled` → `chat.hints.enabled`（旧键仍兼容读取）
+- 移除 `economy.currency-symbol`、`economy.decimal-places`、`homes.teleport-cooldown`、`system.debug-mode`、`permissions.*`、`chat-format.actionbar-notification.title-*`
+- 新增权限节点，详见 `plugin.yml`
+
+### 📌 配套
+- 插件 v1.3.0 建议配合固件 **v3.3.2**（`mn.txt`）；旧固件仍可通信，但仪表盘大帧可能受 2KB 限制
+- 替换 JAR 后必须重启服务器；`/reload` 不会重新初始化调度器/Web 端口
+
+---
+
 ## [1.2.1] - 2026-08-17
 
 ### 🔄 变更 (Changed)
@@ -277,4 +337,4 @@
 
 **完整版本历史查看：** [GitHub Releases](https://github.com/sunday-lil/my-plugin/releases)
 
-**当前版本**: v1.0.0 (2026-07-10)
+**当前版本**: v1.3.0 (2026-10-25)

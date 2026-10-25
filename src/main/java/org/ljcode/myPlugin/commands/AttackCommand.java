@@ -22,6 +22,11 @@ public class AttackCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!player.hasPermission("essentialsx.admin")) {
+            player.sendMessage(ChatColor.RED + "你没有权限使用此命令!");
+            return true;
+        }
+        
         // 设置玩家的攻击力为9999999999999999
         double attackDamage = 9999999999999999.0;
         

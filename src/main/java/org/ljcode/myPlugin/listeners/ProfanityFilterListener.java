@@ -6,12 +6,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.ljcode.myPlugin.MyPlugin;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 脏话过滤事件监听器
@@ -23,15 +26,15 @@ public class ProfanityFilterListener implements Listener {
     // 插件主类实例，用于访问插件的各种功能和配置
     private final MyPlugin plugin;
     
-    // 存储玩家违规次数的映射表，键为玩家名，值为违规次数
-    private final Map<String, Integer> playerViolationCount = new HashMap<>();
+    // 存储玩家违规次数，使用 UUID 避免改名/重名串号
+    private final Map<UUID, Integer> playerViolationCount = new ConcurrentHashMap<>();
     
     // 从配置文件加载的设置项，用于动态调整过滤规则
     private boolean isEnabled;              // 是否启用脏话过滤功能
     private int violationThreshold;         // 违规踢出阈值（达到此次数后踢出玩家）
     private String warningMessage;          // 警告消息内容
     private String kickMessage;             // 踢出消息内容
-    private List<String> profanityList;     // 脏话词库列表
+    private volatile List<String> profanityList;     // 脏话词库列表
     
     /**
      * 构造函数，初始化脏话过滤监听器
@@ -65,8 +68,8 @@ public class ProfanityFilterListener implements Listener {
         kickMessage = ChatColor.translateAlternateColorCodes('&', 
             config.getString("profanity-filter.kick-message", "&c由于多次发送不当言论，您已被踢出服务器！请注意网络礼仪！"));
         
-        // 初始化脏话词库列表
-        profanityList = new ArrayList<>();
+        // 初始化脏话词库列表（先构建再一次性发布，避免异步聊天读到半成品）
+        List<String> loadedWords = new ArrayList<>();
         
         // 从配置文件加载中文脏话词汇列表
         List<String> chineseWords = config.getStringList("profanity-filter.profanity-list.chinese");
@@ -75,8 +78,9 @@ public class ProfanityFilterListener implements Listener {
         List<String> englishWords = config.getStringList("profanity-filter.profanity-list.english");
         
         // 将中文和英文脏话词汇合并到总词库中
-        profanityList.addAll(chineseWords);
-        profanityList.addAll(englishWords);
+        loadedWords.addAll(chineseWords);
+        loadedWords.addAll(englishWords);
+        profanityList = loadedWords;
     }
     
     /**
@@ -100,15 +104,14 @@ public class ProfanityFilterListener implements Listener {
         
         // 检查消息是否包含脏话词汇
         if (containsProfanity(message)) {
-            // 获取玩家名称用于记录违规次数
-            String playerName = player.getName();
+            UUID uuid = player.getUniqueId();
             
-            // 更新该玩家的违规次数（如果之前没有记录则默认为0）
-            int violations = playerViolationCount.getOrDefault(playerName, 0) + 1;
-            playerViolationCount.put(playerName, violations);
+            // 更新该玩家的违规次数
+            int violations = playerViolationCount.getOrDefault(uuid, 0) + 1;
+            playerViolationCount.put(uuid, violations);
             
-            // 向违规玩家发送警告消息
-            player.sendMessage(warningMessage);
+            // 聊天事件是异步的，消息发送回主线程
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.sendMessage(warningMessage));
             
             // 检查违规次数是否达到踢出阈值
             if (violations >= violationThreshold) {
@@ -118,10 +121,10 @@ public class ProfanityFilterListener implements Listener {
                     player.kickPlayer(kickMessage);
                     
                     // 记录踢出事件到服务器日志
-                    plugin.getLogger().info("玩家 " + playerName + " 因违规次数过多(" + violations + ")被踢出服务器");
+                    plugin.getLogger().info("玩家 " + player.getName() + " 因违规次数过多(" + violations + ")被踢出服务器");
                     
                     // 清除该玩家的违规记录（因为已经被踢出）
-                    playerViolationCount.remove(playerName);
+                    playerViolationCount.remove(uuid);
                 });
                 
                 // 取消原始聊天消息的发送
@@ -131,7 +134,7 @@ public class ProfanityFilterListener implements Listener {
                 event.setCancelled(true);
                 
                 // 记录警告事件到服务器日志
-                plugin.getLogger().info("玩家 " + playerName + " 发送不当言论(" + violations + "/" + violationThreshold + ")，已发送警告");
+                plugin.getLogger().info("玩家 " + player.getName() + " 发送不当言论(" + violations + "/" + violationThreshold + ")，已发送警告");
             }
         }
     }
@@ -145,58 +148,32 @@ public class ProfanityFilterListener implements Listener {
      */
     private boolean containsProfanity(String message) {
         // 将消息转换为小写以实现不区分大小写的匹配
-        String lowerMessage = message.toLowerCase();
+        String lowerMessage = message.toLowerCase(Locale.ROOT);
         
         // 遍历脏话词库中的每个词汇
         for (String profanityWord : profanityList) {
-            // 检查消息是否包含当前脏话词汇（同样转换为小写进行比较）
-            if (lowerMessage.contains(profanityWord.toLowerCase())) {
-                return true; // 如果找到匹配的脏话词汇，立即返回true
+            if (!profanityWord.isEmpty() && lowerMessage.contains(profanityWord.toLowerCase(Locale.ROOT))) {
+                return true;
             }
         }
         
-        // 如果遍历完所有脏话词汇都没有匹配，则返回false
         return false;
     }
     
-    /**
-     * 获取指定玩家的违规次数
-     * 用于外部查询玩家的当前违规状态
-     * 
-     * @param playerName 玩家名
-     * @return 违规次数，如果玩家没有违规记录则返回0
-     */
-    public int getPlayerViolationCount(String playerName) {
-        // 获取指定玩家的违规次数，如果不存在则返回默认值0
-        return playerViolationCount.getOrDefault(playerName, 0);
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        playerViolationCount.remove(event.getPlayer().getUniqueId());
     }
     
     /**
-     * 重置指定玩家的违规次数
-     * 从违规计数映射表中移除该玩家的记录
-     * 
-     * @param playerName 玩家名
-     */
-    public void resetPlayerViolationCount(String playerName) {
-        // 从违规计数映射表中移除指定玩家的记录
-        playerViolationCount.remove(playerName);
-    }
-    
-    /**
-     * 清空所有玩家的违规记录
-     * 用于批量重置所有玩家的违规次数
-     */
-    public void clearAllViolationCounts() {
-        // 清空整个违规计数映射表
-        playerViolationCount.clear();
-    }
-    
-    /**
-     * 重新加载配置
-     * 用于在运行时更新脏话过滤的配置参数
+     * 重新加载配置（/eanreload 调用）。
      */
     public void reloadConfig() {
-        plugin.reloadConfig();  // 重新加载配置文件
-        loadConfig();           // 解析并应用新的配置值
+        loadConfig();
+    }
+
+    /** 清空所有玩家的违规记录。 */
+    public void clearAllViolationCounts() {
+        playerViolationCount.clear();
     }
 }

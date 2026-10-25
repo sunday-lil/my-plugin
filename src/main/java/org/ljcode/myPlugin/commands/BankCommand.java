@@ -26,6 +26,11 @@ public class BankCommand implements CommandExecutor {
         
         Player player = (Player) sender;
         
+        if (!player.hasPermission("bank.use")) {
+            player.sendMessage(ChatColor.RED + "你没有权限使用银行系统!");
+            return true;
+        }
+        
         if (args.length == 0) {
             showHelp(player);
             return true;
@@ -91,10 +96,7 @@ public class BankCommand implements CommandExecutor {
         
         double amount;
         try {
-            amount = Double.parseDouble(args[1]);
-            if (amount <= 0) {
-                throw new NumberFormatException();
-            }
+            amount = org.ljcode.myPlugin.utils.BankUtils.parseAmount(args[1]);
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "无效的金额! 金额必须为正数");
             return;
@@ -116,10 +118,7 @@ public class BankCommand implements CommandExecutor {
         
         double amount;
         try {
-            amount = Double.parseDouble(args[1]);
-            if (amount <= 0) {
-                throw new NumberFormatException();
-            }
+            amount = org.ljcode.myPlugin.utils.BankUtils.parseAmount(args[1]);
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "无效的金额! 金额必须为正数");
             return;
@@ -147,10 +146,7 @@ public class BankCommand implements CommandExecutor {
         
         double amount;
         try {
-            amount = Double.parseDouble(args[2]);
-            if (amount <= 0) {
-                throw new NumberFormatException();
-            }
+            amount = org.ljcode.myPlugin.utils.BankUtils.parseAmount(args[2]);
         } catch (NumberFormatException e) {
             player.sendMessage(ChatColor.RED + "无效的金额! 金额必须为正数");
             return;

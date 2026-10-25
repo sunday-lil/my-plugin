@@ -102,7 +102,6 @@ public class Eall22Command implements CommandExecutor {
                     // 镐的附魔
                     meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
                     meta.addEnchant(Enchantment.FORTUNE, 3, true);
-                    meta.addEnchant(Enchantment.SILK_TOUCH, 1, true);
                     meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
                     break;
@@ -114,7 +113,6 @@ public class Eall22Command implements CommandExecutor {
                     meta.addEnchant(Enchantment.BANE_OF_ARTHROPODS, 5, true);
                     meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
                     meta.addEnchant(Enchantment.FORTUNE, 3, true);
-                    meta.addEnchant(Enchantment.SILK_TOUCH, 1, true);
                     meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
                     break;
@@ -123,7 +121,6 @@ public class Eall22Command implements CommandExecutor {
                     // 锹的附魔
                     meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
                     meta.addEnchant(Enchantment.FORTUNE, 3, true);
-                    meta.addEnchant(Enchantment.SILK_TOUCH, 1, true);
                     meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
                     break;
@@ -132,7 +129,6 @@ public class Eall22Command implements CommandExecutor {
                     // 锄的附魔
                     meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
                     meta.addEnchant(Enchantment.FORTUNE, 3, true);
-                    meta.addEnchant(Enchantment.SILK_TOUCH, 1, true);
                     meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
                     break;

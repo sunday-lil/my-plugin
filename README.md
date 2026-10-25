@@ -279,7 +279,7 @@ mvn -DskipTests package    # 跳过测试
 
 ### 日志出现“未知响应类型”
 
-v1.3.0 起，城市/传统事件的裸 `{"status":"ok"}` 会被识别为正常 ACK，不再刷该告警。若仍出现：
+v1.3.1 起，城市/传统事件的裸 `{"status":"ok"}` 会被识别为正常 ACK，不再输出“处理响应类型: 空 / 无 request_id”的 INFO 日志。若仍出现：
 
 - 检查是否有旧版 JAR 残留（`/version EssentialsX-Clone`）。
 - 检查固件是否返回了非预期 JSON（开启 `environment.debug-mode`）。
@@ -301,6 +301,15 @@ v1.3.0 起，城市/传统事件的裸 `{"status":"ok"}` 会被识别为正常 A
 - 确认 8080 未被占用；端口修改需重启。
 - 若配置了 `web.api-token`，在页面右上角填写。
 - 保存失败会返回具体 HTTP 状态；查看服务器日志中的 `[Web]` 记录。
+
+---
+
+## v1.3.1 变更
+
+- 新增 `k10.read-timeout`（默认 8000ms），与 `k10.connection-timeout`（连接 3000ms）分离，避免 K10 首次绘制仪表盘超过 3 秒被误判为发送失败。
+- 超时日志区分“连接超时”和“读取超时”，并说明会自动重试。
+- `CITY_INIT`/`CITY_DASHBOARD`/`CITY_EVENT` 的裸 ACK 不再输出“处理响应类型: 空 / 请求成功确认: 无 request_id”；这类回执没有 `request_id` 是正常的。
+- Web 面板 K10 分组新增“读取超时”字段。
 
 ---
 

@@ -62,7 +62,8 @@ mn.txt                        K10 固件（v3.3.2）
 - 固件 `getJsonValue()` 只支持**一层**点号嵌套；数组要显式迭代。
 - `CITY_DASHBOARD` 固件单次解析（4KB 缓冲）；保持单帧 < 2KB 余量。不要再加 `recent_events` 这类大数组。
 - `environment_summary` 最多 20 行；插件 `max-players-in-report` 不要超过 20。
-- 城市/传统事件固件回 `{"status":"ok"}`；插件把它当正常 ACK，不再告警。环境报告回执带 `request_id`，按它路由。
+- 城市/传统事件固件回 `{"status":"ok"}`；插件把它当正常 ACK，不再输出无 `request_id` 的 INFO 日志。环境报告回执带 `request_id`，按它路由。
+- K10 在 HTTP handler 内同步刷屏，首次仪表盘可能 >3 秒；连接超时 `k10.connection-timeout` 与读取超时 `k10.read-timeout`（默认 8000）已分离。
 - 数字经 ArduinoJson `float` 中转；`founded_date`/`timestamp` 会丢精度，固件不用于逻辑。
 - `CITY_INIT` 只发一次；设备 WiFi 连接阶段（最多 30 秒）会丢，城市名保持默认。
 - 事件白名单：`PLAYER_JOIN/QUIT/DEATH/STATUS_CHANGE/MILESTONE/HOUSING_CHANGE/REDSTONE_SURGE`。
@@ -113,7 +114,7 @@ target/myplugin-1.3.1.jar
 ## 7️⃣ 环境坑位（重要）
 
 1. **换 JAR 必须重启服务器**；`/reload` 不会重启环境/城市调度器，也不会换 Web 端口。
-2. 插件日志出现“未知响应类型”时，先确认版本；v1.3.0 对裸 `{"status":"ok"}` 已不再告警。
+2. 插件日志出现“未知响应类型”时，先确认版本；v1.3.1 对裸 `{"status":"ok"}` 不再输出无 `request_id` 的 INFO 日志。
 3. **改 K10 相关代码必须同步 `mn.txt`**：字段名、嵌套层级、单帧大小、回执形状、16KB/20 行上限。
 4. **`config.yml` 是唯一配置真相源**；新增键必须三处同步：`config.yml` + 代码读取 + 文档/Web schema。
 5. **Mind+ 编译 C++ 陷阱**：默认参数只能写在声明或定义其中一处；当前 `getJsonValue`/`extractJsonObject` 默认参数在前置声明。

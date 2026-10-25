@@ -55,8 +55,10 @@ mvn clean package
 ```yaml
 k10:
   enabled: true
-  host: "192.168.1.235"    # 你的K10设备IP
-  port: 80                  # HTTP端口
+  host: "192.168.1.100"    # 换成你的K10实际IP（路由器DHCP列表可查）
+  port: 80                 # HTTP端口
+  connection-timeout: 3000 # TCP连接超时
+  read-timeout: 8000       # 等待K10响应（设备刷屏较慢时不要低于5000）
 ```
 
 ### 第二步：K10 硬件端
@@ -396,4 +398,4 @@ environment:
 **🎉 祝你使用愉快！让 Minecraft 变成真正的智慧城市！**
 
 *最后更新: 2026-10-25*
-*版本: v1.3.0 - Digital City Edition*
+*版本: v1.3.1 - Digital City Edition*

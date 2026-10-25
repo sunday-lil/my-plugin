@@ -1,6 +1,6 @@
-# 🤖 项目交接文档（v1.3.1）
+# 🤖 项目交接文档（v1.3.2）
 
-> 最后更新：2026-10-25 · 插件 v1.3.1 · K10 固件 v3.3.2
+> 最后更新：2026-10-25 · 插件 v1.3.2 · K10 固件 v3.3.2
 
 ## 1️⃣ 这是什么
 
@@ -69,9 +69,9 @@ mn.txt                        K10 固件（v3.3.2）
 - 事件白名单：`PLAYER_JOIN/QUIT/DEATH/STATUS_CHANGE/MILESTONE/HOUSING_CHANGE/REDSTONE_SURGE`。
 - AP 配网模式没有 `/mc_event`、`/reset`；配网完成重启后才注册业务路由。
 
-## 4️⃣ 当前状态（v1.3.1）
+## 4️⃣ 当前状态（v1.3.2）
 
-- ✅ `mvn clean package` 成功；产物 `target/myplugin-1.3.1.jar`（约 596KB shaded）
+- ✅ `mvn clean package` 成功；产物 `target/myplugin-1.3.2.jar`（约 597KB shaded）
 - ✅ 4 个 JUnit 5 测试通过（金额校验、版本比较）
 - ✅ 修复全新数据目录启动失败（`warps.yml`/`teleport.yml`）
 - ✅ 修复 K10 回执告警刷屏、仪表盘大帧静默丢弃、队列丢唤醒
@@ -103,18 +103,18 @@ mn.txt                        K10 固件（v3.3.2）
 mvn test
 
 # 产物
-target/myplugin-1.3.1.jar
+target/myplugin-1.3.2.jar
 ```
 
 - 本机 JDK 26 编译 target 21 会有模块路径警告，不影响。
 - 首次跑测试需要 Maven 能访问仓库（JUnit 5 / Surefire provider）。
 - K10 固件：Arduino IDE 打开 `mn.txt`，板子选 **ESP32-S3-N8R2**，上传。
-- 发布：`git tag v1.3.1 && git push origin main --tags`，再 `gh release create v1.3.1 target/myplugin-1.3.1.jar`。
+- 发布：`git tag v1.3.2 && git push origin main --tags`，再 `gh release create v1.3.2 target/myplugin-1.3.2.jar`。
 
 ## 7️⃣ 环境坑位（重要）
 
 1. **换 JAR 必须重启服务器**；`/reload` 不会重启环境/城市调度器，也不会换 Web 端口。
-2. 插件日志出现“未知响应类型”时，先确认版本；v1.3.1 对裸 `{"status":"ok"}` 不再输出无 `request_id` 的 INFO 日志。
+2. 插件日志出现“未知响应类型”时，先确认版本；v1.3.1+ 对裸 `{"status":"ok"}` 不再输出无 `request_id` 的 INFO 日志。
 3. **改 K10 相关代码必须同步 `mn.txt`**：字段名、嵌套层级、单帧大小、回执形状、16KB/20 行上限。
 4. **`config.yml` 是唯一配置真相源**；新增键必须三处同步：`config.yml` + 代码读取 + 文档/Web schema。
 5. **Mind+ 编译 C++ 陷阱**：默认参数只能写在声明或定义其中一处；当前 `getJsonValue`/`extractJsonObject` 默认参数在前置声明。

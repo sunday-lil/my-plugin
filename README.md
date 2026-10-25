@@ -1,12 +1,12 @@
 # EssentialsX-Clone · Minecraft × 行空板 K10 数字孪生
 
-[![Version](https://img.shields.io/badge/version-1.3.1-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.2-brightgreen)](CHANGELOG.md)
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21-blue)](https://www.spigotmc.org/)
 [![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
 
 基于 **Spigot 1.21 / Java 21 / Maven** 的服务器管理插件。除 EssentialsX 风格的传送、家园、经济、银行、商店、公告、聊天与菜单外，还与 **行空板 K10（ESP32-S3）** 联动，把服务器状态、数字城市统计和环境数据实时推送到设备屏幕。
 
-> 当前版本：**v1.3.1** · 设备固件：**mn.txt v3.3.2** · 最后更新：2026-10-25
+> 当前版本：**v1.3.2** · 设备固件：**mn.txt v3.3.2** · 最后更新：2026-10-25
 
 ---
 
@@ -72,7 +72,7 @@ Bukkit 事件 / 命令 / 定时任务
 
 ```powershell
 mvn clean package
-# 产物：target/myplugin-1.3.1.jar（shaded，约 596KB）
+# 产物：target/myplugin-1.3.2.jar（shaded，约 597KB）
 ```
 
 本机没有独立 Maven 时可用 IntelliJ 自带：
@@ -84,10 +84,10 @@ mvn clean package
 
 ### 安装
 
-1. 将 `target/myplugin-1.3.1.jar` 放入服务器 `plugins/`。
+1. 将 `target/myplugin-1.3.2.jar` 放入服务器 `plugins/`。
 2. **重启服务器**（不要只用 `/reload`，调度周期和 Web 端口不会重新初始化）。
 3. 首次启动会生成 `plugins/EssentialsX-Clone/config.yml` 与数据文件。
-4. 执行 `/version EssentialsX-Clone` 确认版本为 `1.3.1`。
+4. 执行 `/version EssentialsX-Clone` 确认版本为 `1.3.2`。
 
 ### K10 固件
 
@@ -258,7 +258,7 @@ mvn -DskipTests package    # 跳过测试
 - `BankUtilsTest`：金额解析、0/负数/NaN/Infinity 拒绝
 - `VersionComparisonTest`：语义版本比较
 
-需要 JUnit 5 与可访问的 Maven 仓库。构建成功后生成 `target/myplugin-1.3.1.jar`。
+需要 JUnit 5 与可访问的 Maven 仓库。构建成功后生成 `target/myplugin-1.3.2.jar`。
 
 ---
 
@@ -266,7 +266,7 @@ mvn -DskipTests package    # 跳过测试
 
 ### 插件启动失败 / 全新服务器
 
-- 确认 JAR 完整（约 596KB），且 `warps.yml`/`teleport.yml` 已随 JAR 提供（v1.3.0 已修复）。
+- 确认 JAR 完整（约 597KB），且 `warps.yml`/`teleport.yml` 已随 JAR 提供（v1.3.0 已修复）。
 - 检查控制台是否有 `IllegalArgumentException` 或 `UnsupportedClassVersionError`（需要 Java 21+）。
 
 ### K10 收不到数据
@@ -301,6 +301,13 @@ v1.3.1 起，城市/传统事件的裸 `{"status":"ok"}` 会被识别为正常 A
 - 确认 8080 未被占用；端口修改需重启。
 - 若配置了 `web.api-token`，在页面右上角填写。
 - 保存失败会返回具体 HTTP 状态；查看服务器日志中的 `[Web]` 记录。
+
+---
+
+## v1.3.2 变更
+
+- 出厂 `config.yml` 的 `k10.host` 默认值更新为当前测试设备 `192.168.1.63`（仅影响全新安装；已有 `config.yml` 不会被覆盖，需手动修改）。
+- 其余代码与 v1.3.1 相同。
 
 ---
 

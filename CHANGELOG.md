@@ -7,6 +7,20 @@
 
 ---
 
+## [1.3.2] - 2026-10-25
+
+### 🔧 修复 (Fixed)
+
+- 🐛 **出厂默认 K10 IP** - `config.yml` 的 `k10.host` 默认值从 `192.168.1.235` 更新为当前测试设备 `192.168.1.63`。仅影响全新安装；已有 `config.yml` 不会被 `saveDefaultConfig()` 覆盖，升级后仍需手动修改
+- 📌 现场配置 `E:\minecraft 1.21.11 server\plugins\EssentialsX-Clone\config.yml` 已同步改为 `192.168.1.63`
+
+### 说明
+
+- 代码与 v1.3.1 完全一致，仅默认配置文件和文档变化
+- 已有服务器升级后执行 `/eanreload` 或重启，并确认配置中的 `k10.host`
+
+---
+
 ## [1.3.1] - 2026-10-25
 
 ### 🔧 修复 (Fixed)
@@ -353,4 +367,4 @@
 
 **完整版本历史查看：** [GitHub Releases](https://github.com/sunday-lil/my-plugin/releases)
 
-**当前版本**: v1.3.1 (2026-10-25)
+**当前版本**: v1.3.2 (2026-10-25)

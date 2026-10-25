@@ -1,6 +1,6 @@
 # 🏙️ 数字城市管理系统 - 完整使用指南
 
-> 对应插件 **v1.3.1** / K10 固件 **v3.3.2** · 最后更新：2026-10-25
+> 对应插件 **v1.3.2** / K10 固件 **v3.3.2** · 最后更新：2026-10-25
 
 ## 📋 项目概述
 
@@ -47,7 +47,7 @@ mvn clean package
 ```
 
 2. **安装插件**
-- 将 `target/myplugin-1.3.1.jar` 复制到服务器的 `plugins/` 文件夹
+- 将 `target/myplugin-1.3.2.jar` 复制到服务器的 `plugins/` 文件夹
 - 重启服务器或执行 `/reload`
 
 3. **配置 K10 连接**
@@ -55,7 +55,7 @@ mvn clean package
 ```yaml
 k10:
   enabled: true
-  host: "192.168.1.100"    # 换成你的K10实际IP（路由器DHCP列表可查）
+  host: "192.168.1.63"     # 出厂默认；请按路由器里K10实际IP修改
   port: 80                 # HTTP端口
   connection-timeout: 3000 # TCP连接超时
   read-timeout: 8000       # 等待K10响应（设备刷屏较慢时不要低于5000）

@@ -1,12 +1,12 @@
 # EssentialsX-Clone · Minecraft × 行空板 K10 数字孪生
 
-[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.1-brightgreen)](CHANGELOG.md)
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21-blue)](https://www.spigotmc.org/)
 [![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
 
 基于 **Spigot 1.21 / Java 21 / Maven** 的服务器管理插件。除 EssentialsX 风格的传送、家园、经济、银行、商店、公告、聊天与菜单外，还与 **行空板 K10（ESP32-S3）** 联动，把服务器状态、数字城市统计和环境数据实时推送到设备屏幕。
 
-> 当前版本：**v1.3.0** · 设备固件：**mn.txt v3.3.2** · 最后更新：2026-10-25
+> 当前版本：**v1.3.1** · 设备固件：**mn.txt v3.3.2** · 最后更新：2026-10-25
 
 ---
 
@@ -72,7 +72,7 @@ Bukkit 事件 / 命令 / 定时任务
 
 ```powershell
 mvn clean package
-# 产物：target/myplugin-1.3.0.jar（shaded，约 596KB）
+# 产物：target/myplugin-1.3.1.jar（shaded，约 596KB）
 ```
 
 本机没有独立 Maven 时可用 IntelliJ 自带：
@@ -84,10 +84,10 @@ mvn clean package
 
 ### 安装
 
-1. 将 `target/myplugin-1.3.0.jar` 放入服务器 `plugins/`。
+1. 将 `target/myplugin-1.3.1.jar` 放入服务器 `plugins/`。
 2. **重启服务器**（不要只用 `/reload`，调度周期和 Web 端口不会重新初始化）。
 3. 首次启动会生成 `plugins/EssentialsX-Clone/config.yml` 与数据文件。
-4. 执行 `/version EssentialsX-Clone` 确认版本为 `1.3.0`。
+4. 执行 `/version EssentialsX-Clone` 确认版本为 `1.3.1`。
 
 ### K10 固件
 
@@ -118,8 +118,9 @@ mvn clean package
 ### K10 → 插件
 
 - 环境聚合报告回执：`{"response_type":"acknowledgment","status":"success","request_id":"..."}`，插件按 `request_id` 路由到环境调度器。
-- 城市/传统事件回执：`{"status":"ok"}`，属于正常 ACK，插件不再打印“未知响应类型”告警。
+- 城市/传统事件回执：`{"status":"ok"}`，属于正常 ACK，**没有 `request_id` 是正常的**；只有 `environment_summary` 使用 `request_id`。
 - JSON 解析失败：HTTP 200 + `{"response_type":"error",...}`，插件日志会记录错误。
+- K10 在 HTTP handler 内同步刷屏，首次仪表盘可能超过 3 秒；`k10.connection-timeout` 只用于连接，`k10.read-timeout`（默认 8000ms）用于等待响应。
 
 ### 固件约束（改协议前必读）
 
@@ -257,7 +258,7 @@ mvn -DskipTests package    # 跳过测试
 - `BankUtilsTest`：金额解析、0/负数/NaN/Infinity 拒绝
 - `VersionComparisonTest`：语义版本比较
 
-需要 JUnit 5 与可访问的 Maven 仓库。构建成功后生成 `target/myplugin-1.3.0.jar`。
+需要 JUnit 5 与可访问的 Maven 仓库。构建成功后生成 `target/myplugin-1.3.1.jar`。
 
 ---
 

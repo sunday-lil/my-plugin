@@ -11,6 +11,8 @@ k10:
   port: 80
   # 连接超时时间（毫秒）
   connection-timeout: 3000
+  # 读取超时时间（毫秒）。K10 在 HTTP 处理里同步刷屏，首次仪表盘可能超过 3 秒
+  read-timeout: 8000
   # 连接失败最大重试次数
   max-retries: 3
   # 是否启用玩家事件监听

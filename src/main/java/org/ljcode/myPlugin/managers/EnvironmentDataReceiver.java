@@ -50,10 +50,11 @@ public class EnvironmentDataReceiver {
 
         try {
             String responseType = (String) responseData.getOrDefault("response_type", "");
-            lastReceivedType = responseType;
+            // 城市/传统事件的裸 ACK 没有 response_type，统计里统一记为 ack
+            lastReceivedType = responseType.isEmpty() ? "ack" : responseType;
 
-            if (config.getBoolean("environment.debug-mode", false)) {
-                Bukkit.getLogger().info("[环境数据接收器] 处理响应类型: " + responseType);
+            if (config.getBoolean("environment.debug-mode", false) && !responseType.isEmpty()) {
+                Bukkit.getLogger().fine("[环境数据接收器] 处理响应类型: " + responseType);
             }
 
             // 固件对 CITY_* / 传统事件只回 {"status":"ok"}，没有 response_type。
@@ -121,8 +122,14 @@ public class EnvironmentDataReceiver {
         String message = (String) data.getOrDefault("message", "");
 
         if ("success".equals(status) || "ok".equals(status)) {
-            if (config.getBoolean("environment.debug-mode", false)) {
-                Bukkit.getLogger().info("[环境数据接收器] 请求成功确认: " + (requestId == null ? "无 request_id" : requestId));
+            boolean hasRequestId = requestId != null && !requestId.isEmpty();
+            if (hasRequestId) {
+                if (config.getBoolean("environment.debug-mode", false)) {
+                    Bukkit.getLogger().info("[环境数据接收器] 环境报告确认: " + requestId);
+                }
+            } else {
+                // CITY_INIT/CITY_DASHBOARD/CITY_EVENT 的裸 ACK，属于正常回执，不刷屏
+                Bukkit.getLogger().fine("[环境数据接收器] 城市/事件 ACK（无 request_id，正常）");
             }
         } else {
             Bukkit.getLogger().warning("[环境数据接收器] 请求失败: " + requestId + " - " + message);

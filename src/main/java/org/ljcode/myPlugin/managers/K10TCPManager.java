@@ -45,6 +45,7 @@ public class K10TCPManager {
     private int k10Port;
     private int maxRetries;
     private int connectionTimeout;
+    private int readTimeout;
     private boolean debugMode;
     
     private final AtomicBoolean isProcessingQueue;
@@ -77,6 +78,7 @@ public class K10TCPManager {
         this.k10Port = config.getInt("k10.port");
         this.maxRetries = config.getInt("k10.max-retries");
         this.connectionTimeout = config.getInt("k10.connection-timeout");
+        this.readTimeout = Math.max(connectionTimeout, config.getInt("k10.read-timeout", 8000));
         this.debugMode = config.getBoolean("k10.debug-mode", false);
         
         // 验证和清理主机地址
@@ -189,6 +191,7 @@ public class K10TCPManager {
         this.k10Port = config.getInt("k10.port");
         this.maxRetries = config.getInt("k10.max-retries");
         this.connectionTimeout = config.getInt("k10.connection-timeout");
+        this.readTimeout = Math.max(connectionTimeout, config.getInt("k10.read-timeout", 8000));
         this.debugMode = config.getBoolean("k10.debug-mode", false);
         
         // 重新验证和清理主机地址
@@ -335,7 +338,7 @@ public class K10TCPManager {
                 conn.setRequestProperty("Accept", "application/json");
                 conn.setRequestProperty("X-K10-Source", "Minecraft-Plugin"); // 标识来源
                 conn.setConnectTimeout(connectionTimeout);
-                conn.setReadTimeout(connectionTimeout);
+                conn.setReadTimeout(readTimeout);
                 conn.setDoOutput(true);
                 
                 try (OutputStream os = conn.getOutputStream()) {
@@ -411,8 +414,14 @@ public class K10TCPManager {
                 retryCount++;
                 lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
                 isHealthy = false;
-                
-                Bukkit.getLogger().warning("[K10数字孪生] ✗ 发送失败 (" + retryCount + "/" + maxRetries + "): " + lastError);
+
+                String reason = "发送失败";
+                if (e instanceof java.net.SocketTimeoutException) {
+                    String timeoutMessage = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+                    reason = timeoutMessage.contains("read") ? "读取超时（K10 处理较慢，将重试）" : "连接超时（检查 IP/端口/网络，将重试）";
+                }
+
+                Bukkit.getLogger().warning("[K10数字孪生] ✗ " + reason + " (" + retryCount + "/" + maxRetries + "): " + lastError);
                 
                 if (retryCount < maxRetries) {
                     try {

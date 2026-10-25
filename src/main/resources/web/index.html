@@ -101,6 +101,7 @@ const SCHEMA = [
             { path: "k10.host", label: "K10 IP 地址", type: "text" },
             { path: "k10.port", label: "K10 HTTP 端口", type: "number" },
             { path: "k10.connection-timeout", label: "连接超时（毫秒）", type: "number" },
+            { path: "k10.read-timeout", label: "读取超时（毫秒）", type: "number", hint: "K10 刷屏较慢时建议 8000" },
             { path: "k10.max-retries", label: "最大重试次数", type: "number" },
             { path: "k10.player-events-enabled", label: "推送玩家加入/退出/死亡", type: "bool" },
             { path: "k10.chat-events-enabled", label: "推送聊天消息", type: "bool" },

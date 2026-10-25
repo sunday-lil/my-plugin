@@ -180,7 +180,6 @@ permissions:
     children:
       essentialsx.home.set: true
       essentialsx.home.teleport: true
-      essentialsx.home.multiple: false
 
   essentialsx.home.multiple:
     description: Allows exceeding the normal home limit

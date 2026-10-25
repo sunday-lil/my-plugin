@@ -1,9 +1,9 @@
 /*!
 Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.2
 v3.3.2 更新：
-1. processCityDashboardData 改为单次 16KB 解析（原每个字段重新解析 2048 字节，
+1. processCityDashboardData 改为单次解析（4KB 缓冲，原每个字段重新解析 2048 字节，
    仪表盘超过 2KB 时所有字段静默读空，大屏停止更新）
-2. handleCityEvent 的 event_type/extractJsonObject 容量提升到 16384
+2. 环境聚合/事件分发使用 8KB 缓冲；eventType 复用外层解析结果，避免同帧三次 16KB 解析
 3. 插件端移除固件未消费的 recent_events，仪表盘单帧保持 <2KB
 v3.3.1 修复（环境聚合报告接收失败）：
 1. handleMcEvent/handleEnvironmentSummary 改为单次16384字节大容量解析

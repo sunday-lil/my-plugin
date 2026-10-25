@@ -124,7 +124,7 @@ mvn clean package
 ### 固件约束（改协议前必读）
 
 - `getJsonValue()` 只支持**一层点号嵌套**（`a.b`）；数组必须显式迭代。
-- `CITY_DASHBOARD` 单次 16KB 解析；请保持单帧 < 2KB 的余量（当前约 0.7KB）。
+- `CITY_DASHBOARD` 单次解析（4KB 缓冲）；请保持单帧 < 2KB 的余量（当前约 0.7KB）。
 - `environment_summary` 最多 20 行；插件 `max-players-in-report` 不要超过 20。
 - 数字经 ArduinoJson `float` 中转，13 位时间戳会丢精度；固件不使用这些字段做逻辑。
 - 事件类型白名单：`PLAYER_JOIN/QUIT/DEATH/STATUS_CHANGE/MILESTONE/HOUSING_CHANGE/REDSTONE_SURGE`。
@@ -309,7 +309,7 @@ v1.3.0 起，城市/传统事件的裸 `{"status":"ok"}` 会被识别为正常 A
 
 - 修复全新数据目录首次启动因缺失 `warps.yml`/`teleport.yml` 失败。
 - 修复 K10 城市回执被误报“未知响应类型”的日志刷屏。
-- 修复仪表盘超过 2KB 时固件静默丢弃（改为 16KB 单次解析；移除未消费的 `recent_events`）。
+- 修复仪表盘超过 2KB 时固件静默丢弃（改为单次解析，4KB/8KB 缓冲；移除未消费的 `recent_events`）。
 - 修复 `/egm` 参数解析、`/eco` 识别、`/esetspawn` 双实例缓存、`/back` 方向、NaN 金额注入。
 - 修复菜单/商店点击自己背包物品触发功能、方块破坏复制/保护绕过、火焰刀岩浆残留。
 - 修复聊天管线：脏话消息不再发往 K10、表情转换真正生效、异步线程不再发包、欢迎指南不再重复。

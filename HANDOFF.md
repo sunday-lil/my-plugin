@@ -60,7 +60,7 @@ mn.txt                        K10 固件（v3.3.2）
 **必须记住**：
 
 - 固件 `getJsonValue()` 只支持**一层**点号嵌套；数组要显式迭代。
-- `CITY_DASHBOARD` 固件单次 16KB 解析；保持单帧 < 2KB 余量。不要再加 `recent_events` 这类大数组。
+- `CITY_DASHBOARD` 固件单次解析（4KB 缓冲）；保持单帧 < 2KB 余量。不要再加 `recent_events` 这类大数组。
 - `environment_summary` 最多 20 行；插件 `max-players-in-report` 不要超过 20。
 - 城市/传统事件固件回 `{"status":"ok"}`；插件把它当正常 ACK，不再告警。环境报告回执带 `request_id`，按它路由。
 - 数字经 ArduinoJson `float` 中转；`founded_date`/`timestamp` 会丢精度，固件不用于逻辑。

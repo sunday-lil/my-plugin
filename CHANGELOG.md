@@ -19,7 +19,7 @@
 
 #### K10 / 数字城市
 - 🐛 **回执误报** - 城市/传统事件的裸 `{"status":"ok"}` 现在按正常 ACK 处理，不再每条回执刷“未知响应类型”
-- 🐛 **仪表盘 2KB 静默丢弃** - 固件 `processCityDashboardData` 改为一次 16KB 解析；`handleCityEvent`/`extractJsonObject` 容量参数化；插件侧移除固件未消费的 `recent_events`
+- 🐛 **仪表盘 2KB 静默丢弃** - 固件 `processCityDashboardData` 改为一次解析（4KB 缓冲）；环境/事件分发 8KB；`handleCityEvent` 复用外层 `eventType`，`extractJsonObject` 容量参数化；插件侧移除固件未消费的 `recent_events`
 - 🐛 **K10 队列丢唤醒** - 处理线程退出后重新检查队列；节流状态加锁，避免异步聊天并发穿透
 - 🐛 **日志降噪** - 每条消息的入队/成功日志默认降为 FINE，`k10.debug-mode: true` 时恢复
 - 🐛 **城市状态陈旧** - 每帧仪表盘重算状态；当日死亡数/峰值按天重置，避免累计死亡永久 CRITICAL

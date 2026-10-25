@@ -191,7 +191,7 @@ void processCityInitData(String body);
 void processCityDashboardData(String body);
 void processCityEventData(String eventDataStr);
 void handleEnvironmentSummary(String body);
-void handleCityEvent(String body);
+void handleCityEvent(String body, String eventType);
 void handleMcEvent();
 void handleConfigPage();
 void handleSaveWifi();
@@ -607,9 +607,9 @@ void processCityInitData(String body) {
 }
 
 void processCityDashboardData(String body) {
-    // v3.3.2: 一次 16KB 解析代替“每个字段重新解析 2048 字节”。
-    // 旧实现下仪表盘 body 超过 2KB 时所有字段都会静默读空，大屏停止更新。
-    DynamicJsonDocument doc(16384);
+    // v3.3.2: 一次解析代替“每个字段重新解析 2048 字节”。
+    // 仪表盘实际约 0.7KB，4096 已足够；不再与外层 16KB doc 叠加浪费堆。
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
         appendLog("[城市] 仪表盘 JSON 解析失败: " + String(error.c_str()) + " 长度:" + String(body.length()));
@@ -713,6 +713,12 @@ void processCityEventData(String eventDataStr) {
     } else if (eventType == "REDSTONE_SURGE") {
         showTempStatus("🔴 红石活动", eventDesc, 0xFF6644, 0xFFFFFF);
         blinkLED(0xFF6644);
+    } else if (eventType == "WEATHER_CHANGE") {
+        showTempStatus("🌦️ 天气变化", eventDesc, 0x44DDFF, 0xFFFFFF);
+        blinkLED(0x44DDFF);
+    } else if (eventType == "ANNOUNCEMENT") {
+        showTempStatus("📢 服务器公告", eventDesc, 0xAA88FF, 0xFFFFFF);
+        blinkLED(0xAA88FF);
     }
 }
 
@@ -879,11 +885,11 @@ void handleSaveWifi() {
 
 // ============= 环境聚合报告（全玩家汇总列表，插件v1.2.0默认每60秒一条） =============
 // v3.3: 只更新表格数据+LED，不强制切换界面；正在浏览表格页时原地刷新
-// v3.3.1: 单次16384字节解析（20玩家全字段约3.5KB，旧12284在极限情况仍有风险）
+// v3.3.1: 单次8192字节解析（20玩家全字段约3.5KB，旧2048在10+玩家即溢出）
 void handleEnvironmentSummary(String body) {
     // v3.3.1: 一次大容量解析，request_id/player_count/players 全部从同一doc取
     // （旧代码先用getJsonValue(2048)取request_id，大body直接NoMemory返回空）
-    DynamicJsonDocument doc(16384);
+    DynamicJsonDocument doc(8192);
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
         appendLog("[环境] JSON解析失败: " + String(error.c_str()) + " 长度:" + String(body.length()));
@@ -918,7 +924,7 @@ void handleEnvironmentSummary(String body) {
     // 光标/滚动位置钳制（行数可能变少）
     if (envCursor > envRowCount) {
         envCursor = envRowCount;
-        envScrollTop = envRowCount;
+        envScrollTop = max(0, envRowCount - ENV_VISIBLE_ROWS + 1);
     }
 
     // LED 提示（环境报告到达）
@@ -945,9 +951,7 @@ void handleEnvironmentSummary(String body) {
     server.send(200, "application/json", response);
 }
 
-void handleCityEvent(String body) {
-    String eventType = getJsonValue(body, "event_type", 16384);
-
+void handleCityEvent(String body, String eventType) {
     if (eventType == "CITY_INIT") {
         processCityInitData(body);
     } else if (eventType == "CITY_DASHBOARD") {
@@ -974,11 +978,11 @@ void handleMcEvent() {
 
     String body = server.arg("plain");
 
-    // v3.3.1: 单次16384字节解析提取全部分发字段。
+    // v3.3.1: 单次8192字节解析提取全部分发字段。
     // 旧实现每个getJsonValue各自分配2048字节doc，聚合报告(10+玩家即超2KB)
     // 解析NoMemory返回空 → event匹配失败 → 回了裸{"status":"ok"} →
     // 插件端找不到request_id/response_type，报"未知响应类型"
-    DynamicJsonDocument doc(16384);
+    DynamicJsonDocument doc(8192);
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
         appendLog("[事件] JSON解析失败: " + String(error.c_str()) + " 长度:" + String(body.length()));
@@ -996,7 +1000,7 @@ void handleMcEvent() {
 
     // 检查是否是城市数据事件
     if (eventType.startsWith("CITY_") || eventType == "DETAILED_STATISTICS") {
-        handleCityEvent(body);
+        handleCityEvent(body, eventType);
         return;
     }
 
@@ -1036,7 +1040,7 @@ void handleStatusPage() {
 <!DOCTYPE html><meta charset="utf-8">
 <html>
 <body style="font-family:sans-serif;background:#0A0A1A;color:#CCCCCC;padding:20px;">
-<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.3</h2>
+<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.3.2</h2>
 <p>✅ 状态：运行中</p>
 <p>📡 IP: )rawliteral" + deviceIP + R"rawliteral(</p>
 <p>🏙️ 城市：)rawliteral" + (cityInitialized ? cityName : "未连接") + R"rawliteral(</p>
@@ -1225,7 +1229,7 @@ void setup() {
     }
     server.begin();
 
-    Serial.println("[系统] K10 MC Bridge v3.3 启动完成");
+    Serial.println("[系统] K10 MC Bridge v3.3.2 启动完成");
 }
 
 void loop() {

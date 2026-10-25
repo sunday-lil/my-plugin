@@ -243,6 +243,7 @@ public class DigitalCityManager {
 
     private void collectDetailedStatistics() {
         biomeDistribution.clear();
+        activityHeatmap.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
             String biome = player.getLocation().getBlock().getBiome().name();
             biomeDistribution.merge(biome, 1, (a, b) -> Integer.sum(a, b));

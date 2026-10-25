@@ -1,5 +1,9 @@
 /*!
-Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.2
+Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.3
+v3.3.3 更新：
+1. 环境表格选中行改为深蓝底 + 白色/黄色/青色文字，必要时增加 ▶ 选中标记，
+   修复选中项文字与背景颜色接近、看不清的问题
+2. 城市状态条文字改用近黑色，避免 0x000000 在部分画布实现中被当作透明
 v3.3.2 更新：
 1. processCityDashboardData 改为单次解析（4KB 缓冲，原每个字段重新解析 2048 字节，
    仪表盘超过 2KB 时所有字段静默读空，大屏停止更新）
@@ -294,7 +298,7 @@ void drawCityDashboard() {
     k10.canvas->canvasRectangle(110, 118, 100, 18, statusBarColor, statusBarColor, true);
 
     String statusText = translateCityStatus(cityBasic.cityStatus);
-    k10.canvas->canvasText(statusText, 115, 120, 0x000000, k10.canvas->eCNAndENFont16, 22, true);
+    k10.canvas->canvasText(statusText, 115, 120, 0x001018, k10.canvas->eCNAndENFont16, 22, true);
 
     // ========== 第三行：人口统计 ==========
     k10.canvas->canvasText("== 人口统计 ==", 12, 145, 0x6688AA, k10.canvas->eCNAndENFont16, 26, true);
@@ -381,19 +385,22 @@ void drawEnvTable() {
             }
 
             if (selected) {
-                // 选中行: 高亮背景条 + 黑字
-                k10.canvas->canvasRectangle(10, y - 3, 220, 22, 0x00AAFF, 0x00AAFF, true);
-                k10.canvas->canvasText(name, 14, y, 0x000000, k10.canvas->eCNAndENFont16, 30, true);
-                if (tempStr != "") {
-                    k10.canvas->canvasText(tempStr, 130, y, 0x000000, k10.canvas->eCNAndENFont16, 26, true);
-                    k10.canvas->canvasText(humStr, 185, y, 0x000000, k10.canvas->eCNAndENFont16, 22, true);
-                }
+                // 选中行：深色高亮条 + 亮色文字，避免黑字/背景过暗看不清
+                k10.canvas->canvasRectangle(10, y - 3, 220, 22, 0x1E3A5F, 0x1E3A5F, true);
+                k10.canvas->canvasText("▶", 1, y, 0x00FFAA, k10.canvas->eCNAndENFont16, 12, true);
+                nameColor = 0xFFFFFF;
+                tempColor = 0xFFDD44;
+                humColor = 0x66FFFF;
             } else {
-                k10.canvas->canvasText(name, 14, y, nameColor, k10.canvas->eCNAndENFont16, 30, true);
-                if (tempStr != "") {
-                    k10.canvas->canvasText(tempStr, 130, y, tempColor, k10.canvas->eCNAndENFont16, 26, true);
-                    k10.canvas->canvasText(humStr, 185, y, humColor, k10.canvas->eCNAndENFont16, 22, true);
-                }
+                nameColor = 0xCCCCCC;
+                tempColor = 0xFFAA44;
+                humColor = 0x44DDFF;
+            }
+
+            k10.canvas->canvasText(name, 14, y, nameColor, k10.canvas->eCNAndENFont16, 30, true);
+            if (tempStr != "") {
+                k10.canvas->canvasText(tempStr, 130, y, tempColor, k10.canvas->eCNAndENFont16, 26, true);
+                k10.canvas->canvasText(humStr, 185, y, humColor, k10.canvas->eCNAndENFont16, 22, true);
             }
             y += 22;
         }
@@ -1040,7 +1047,7 @@ void handleStatusPage() {
 <!DOCTYPE html><meta charset="utf-8">
 <html>
 <body style="font-family:sans-serif;background:#0A0A1A;color:#CCCCCC;padding:20px;">
-<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.3.2</h2>
+<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.3.3</h2>
 <p>✅ 状态：运行中</p>
 <p>📡 IP: )rawliteral" + deviceIP + R"rawliteral(</p>
 <p>🏙️ 城市：)rawliteral" + (cityInitialized ? cityName : "未连接") + R"rawliteral(</p>
@@ -1229,7 +1236,7 @@ void setup() {
     }
     server.begin();
 
-    Serial.println("[系统] K10 MC Bridge v3.3.2 启动完成");
+    Serial.println("[系统] K10 MC Bridge v3.3.3 启动完成");
 }
 
 void loop() {

@@ -1,6 +1,6 @@
 # 🤖 项目交接文档（v1.3.2）
 
-> 最后更新：2026-10-25 · 插件 v1.3.2 · K10 固件 v3.3.2
+> 最后更新：2026-10-25 · 插件 v1.3.2 · K10 固件 v3.3.3
 
 ## 1️⃣ 这是什么
 
@@ -41,7 +41,7 @@ gui/ShopGUI.java              9 格商店
 web/WebServer.java            NanoHTTPD 8080 + /api/config
 resources/config.yml          唯一配置真相源（v1.3.0 已清理死键）
 resources/web/index.html      Schema 驱动的配置面板
-mn.txt                        K10 固件（v3.3.2）
+mn.txt                        K10 固件（v3.3.3）
 ```
 
 三层架构：`commands/` → `managers/` → `listeners/`；GUI 在 `gui/`，Web 在 `web/`，测试在 `src/test/java`。

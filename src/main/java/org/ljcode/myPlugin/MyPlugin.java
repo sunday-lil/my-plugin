@@ -312,6 +312,7 @@ public final class MyPlugin extends JavaPlugin {
         getCommand("eall66").setExecutor(new Eall66Command(this));          // 满附魔下界合金盔甲指令
         getCommand("eall22").setExecutor(new Eall22Command(this));          // 满附魔下界合金工具指令
         getCommand("enuke").setExecutor(new EnukeCommand(this));            // 核弹法阵指令
+        getCommand("我无敌了").setExecutor(new InvincibleCommand());        // 有益 Buff 切换
 
         // 菜单命令
         menuCommand = new MenuCommand(this);

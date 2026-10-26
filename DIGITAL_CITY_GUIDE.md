@@ -398,4 +398,4 @@ environment:
 **🎉 祝你使用愉快！让 Minecraft 变成真正的智慧城市！**
 
 *最后更新: 2026-10-25*
-*版本: v1.3.2 - Digital City Edition*
+*版本: v1.4.0 - Digital City Edition*

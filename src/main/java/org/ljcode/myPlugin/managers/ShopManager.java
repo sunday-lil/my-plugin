@@ -25,7 +25,7 @@ public class ShopManager {
     private void loadShopItems() {
         FileConfiguration config = plugin.getConfig();
         
-        if (!config.contains("shop")) {
+        if (!config.isConfigurationSection("shop")) {
             setupDefaultShopItems();
             plugin.saveConfig();
         }
@@ -37,10 +37,18 @@ public class ShopManager {
                 if (itemSection != null) {
                     String materialName = itemSection.getString("material");
                     double price = itemSection.getDouble("price");
+                    if (!Double.isFinite(price) || price < 0) {
+                        plugin.getLogger().warning("商店条目价格非法: " + key + " = " + price);
+                        continue;
+                    }
                     int slot = itemSection.getInt("slot");
                     int maxStock = itemSection.getInt("maxStock", -1);
                     
                     try {
+                        if (materialName == null || materialName.isBlank()) {
+                            plugin.getLogger().warning("商店条目缺少 material: " + key);
+                            continue;
+                        }
                         Material material = Material.valueOf(materialName);
                         ShopItem item = new ShopItem(key, material, price, slot, maxStock);
                         shopItems.put(key, item);

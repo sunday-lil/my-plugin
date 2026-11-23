@@ -75,9 +75,9 @@ public class K10TCPManager {
      */
     private void loadConfig() {
         this.k10Host = config.getString("k10.host");
-        this.k10Port = config.getInt("k10.port");
-        this.maxRetries = config.getInt("k10.max-retries");
-        this.connectionTimeout = config.getInt("k10.connection-timeout");
+        this.k10Port = Math.max(1, Math.min(65535, config.getInt("k10.port", 80)));
+        this.maxRetries = Math.max(0, Math.min(10, config.getInt("k10.max-retries", 2)));
+        this.connectionTimeout = Math.max(500, config.getInt("k10.connection-timeout", 3000));
         this.readTimeout = Math.max(connectionTimeout, config.getInt("k10.read-timeout", 8000));
         this.debugMode = config.getBoolean("k10.debug-mode", false);
         
@@ -187,16 +187,8 @@ public class K10TCPManager {
      * 从配置文件重新加载K10相关设置
      */
     public void reloadConfig() {
-        this.k10Host = config.getString("k10.host");
-        this.k10Port = config.getInt("k10.port");
-        this.maxRetries = config.getInt("k10.max-retries");
-        this.connectionTimeout = config.getInt("k10.connection-timeout");
-        this.readTimeout = Math.max(connectionTimeout, config.getInt("k10.read-timeout", 8000));
-        this.debugMode = config.getBoolean("k10.debug-mode", false);
-        
-        // 重新验证和清理主机地址
-        this.k10Host = validateAndCleanHost(this.k10Host);
-
+        // 复用同一套解析/夹取逻辑，避免重载路径与启动路径分叉
+        loadConfig();
         Bukkit.getLogger().info("[K10数字孪生] 配置已重新加载 - 新目标: " + k10Host + ":" + k10Port);
     }
 

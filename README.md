@@ -1,12 +1,12 @@
 # EssentialsX-Clone · Minecraft × 行空板 K10 数字孪生
 
-[![Version](https://img.shields.io/badge/version-1.4.0-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.4.1-brightgreen)](CHANGELOG.md)
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21-blue)](https://www.spigotmc.org/)
 [![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
 
 基于 **Spigot 1.21 / Java 21 / Maven** 的服务器管理插件。除 EssentialsX 风格的传送、家园、经济、银行、商店、公告、聊天与菜单外，还与 **行空板 K10（ESP32-S3）** 联动，把服务器状态、数字城市统计和环境数据实时推送到设备屏幕。
 
-> 当前版本：**v1.4.0** · 设备固件：**mn.txt v3.3.3** · 最后更新：2026-10-25
+> 当前版本：**v1.4.1** · 设备固件：**mn.txt v3.3.4** · 最后更新：2026-11-23
 
 ---
 
@@ -66,28 +66,28 @@ Bukkit 事件 / 命令 / 定时任务
 - **Java 21+**
 - Maven 3.8+（或 IntelliJ IDEA 自带 Maven）
 - 可选：PlaceholderAPI 2.11.6+
-- 硬件：行空板 K10（ESP32-S3），固件 `mn.txt` v3.3.3
+- 硬件：行空板 K10（ESP32-S3），固件 `mn.txt` v3.3.4
 
 ### 构建
 
 ```powershell
 mvn clean package
-# 产物：target/myplugin-1.4.0.jar（shaded，约 600KB）
+# 产物：target/myplugin-1.4.1.jar（shaded，约 600KB）
 ```
 
 本机没有独立 Maven 时可用 IntelliJ 自带：
 
 ```powershell
-& "E:\IntelliJ IDEA 2026.2.1\plugins\maven-plugin\lib\maven3\bin\mvn.cmd" `
+& "C:\Program Files\JetBrains\IntelliJ IDEA 2026.3\plugins\maven-plugin\lib\maven3\bin\mvn.cmd" `
   -f "E:\minecraft dev\my plugin\pom.xml" clean package
 ```
 
 ### 安装
 
-1. 将 `target/myplugin-1.4.0.jar` 放入服务器 `plugins/`。
+1. 将 `target/myplugin-1.4.1.jar` 放入服务器 `plugins/`。
 2. **重启服务器**（不要只用 `/reload`，调度周期和 Web 端口不会重新初始化）。
 3. 首次启动会生成 `plugins/EssentialsX-Clone/config.yml` 与数据文件。
-4. 执行 `/version EssentialsX-Clone` 确认版本为 `1.4.0`。
+4. 执行 `/version EssentialsX-Clone` 确认版本为 `1.4.1`。
 
 ### K10 固件
 
@@ -259,7 +259,7 @@ mvn -DskipTests package    # 跳过测试
 - `BankUtilsTest`：金额解析、0/负数/NaN/Infinity 拒绝
 - `VersionComparisonTest`：语义版本比较
 
-需要 JUnit 5 与可访问的 Maven 仓库。构建成功后生成 `target/myplugin-1.4.0.jar`。
+需要 JUnit 5 与可访问的 Maven 仓库。构建成功后生成 `target/myplugin-1.4.1.jar`。
 
 ---
 
@@ -275,7 +275,7 @@ mvn -DskipTests package    # 跳过测试
 1. `ping <k10.host>`，确认同一局域网。
 2. 检查防火墙 80 端口。
 3. 打开 `k10.debug-mode: true`，观察 `[K10数字孪生]` 日志。
-4. 确认固件为 v3.3.3，设备 IP 与配置一致。
+4. 确认固件为 v3.3.4，设备 IP 与配置一致。
 5. 设备 AP 配网模式下没有 `/mc_event`，必须先完成 WiFi 配网。
 
 ### 日志出现“未知响应类型”
@@ -302,6 +302,16 @@ v1.3.1 起，城市/传统事件的裸 `{"status":"ok"}` 会被识别为正常 A
 - 确认 8080 未被占用；端口修改需重启。
 - 若配置了 `web.api-token`，在页面右上角填写。
 - 保存失败会返回具体 HTTP 状态；查看服务器日志中的 `[Web]` 记录。
+
+---
+
+## v1.4.1 变更
+
+- 修复家园/传送点删除后重启复活：写回前清空对应 YAML 段。
+- 修复损坏 UUID、非法余额、非法商店配置导致启动异常。
+- 修复 `/sellall` 误收穿戴盔甲/副手物品，单次出售同样只扣主背包。
+- 修复公告间隔为 0、环境报告人数超限/响应超时过短、K10 非法端口/重试/超时配置的边界问题。
+- K10 固件升级到 **v3.3.4**：无 SD 卡或日志文件打开失败时限制日志缓冲区，并按换行裁剪，避免内存耗尽。
 
 ---
 

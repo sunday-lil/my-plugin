@@ -33,7 +33,7 @@ public class WarpManager {
             }
         }
         
-        if (dataConfig.contains("warps")) {
+        if (dataConfig.isConfigurationSection("warps")) {
             for (String warpName : dataConfig.getConfigurationSection("warps").getKeys(false)) {
                 Location location = dataConfig.getLocation("warps." + warpName);
                 if (location != null) {
@@ -44,6 +44,8 @@ public class WarpManager {
     }
     
     public void saveData() {
+        // 先清空旧数据，确保删除的传送点不会在重启后复活
+        dataConfig.set("warps", null);
         for (Map.Entry<String, Location> entry : warps.entrySet()) {
             dataConfig.set("warps." + entry.getKey(), entry.getValue());
         }
@@ -56,6 +58,10 @@ public class WarpManager {
     }
     
     public boolean setWarp(String warpName, Location location) {
+        // 传送点名会写入 YAML 路径，点号会把名称拆成嵌套节点
+        if (warpName == null || warpName.isBlank() || warpName.contains(".")) {
+            return false;
+        }
         if (warps.containsKey(warpName)) {
             return false;
         }

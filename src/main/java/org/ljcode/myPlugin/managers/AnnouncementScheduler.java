@@ -20,7 +20,8 @@ public class AnnouncementScheduler {
             scheduledTask.cancel();
         }
 
-        int interval = plugin.getConfig().getInt("announcements.interval", 60) * 20; // Convert seconds to ticks
+        int seconds = Math.max(1, plugin.getConfig().getInt("announcements.interval", 60));
+        int interval = seconds * 20; // Convert seconds to ticks; 0 would make runTaskTimer throw
         
         scheduledTask = new BukkitRunnable() {
             @Override

@@ -67,7 +67,9 @@ public class EnvironmentDataScheduler {
         if (reportInterval < 200) {
             reportInterval = 200; // 下限10秒，防止误配置刷屏
         }
-        this.maxPlayersInReport = plugin.getConfig().getInt("environment.max-players-in-report", 20);
+        // K10 固件最多解析 20 行；配置超限会导致尾部玩家被静默截断
+        this.maxPlayersInReport = Math.max(1, Math.min(20,
+                plugin.getConfig().getInt("environment.max-players-in-report", 20)));
     }
 
     public void start() {
@@ -124,6 +126,9 @@ public class EnvironmentDataScheduler {
             responseCheckTask.cancel();
             responseCheckTask = null;
         }
+
+        // 重载/关闭时清掉旧请求，避免新周期被上一轮的 request_id 干扰
+        pendingRequests.clear();
 
         Bukkit.getLogger().info("[环境数据] 调度器已停止");
         logStatistics();
@@ -249,7 +254,7 @@ public class EnvironmentDataScheduler {
 
     private void checkPendingResponses() {
         long currentTime = System.currentTimeMillis();
-        long timeout = plugin.getConfig().getLong("environment.response-timeout", 5000);
+        long timeout = Math.max(1000, plugin.getConfig().getLong("environment.response-timeout", 5000));
 
         pendingRequests.entrySet().removeIf(entry -> {
             long elapsedTime = currentTime - entry.getValue();

@@ -1,5 +1,7 @@
 /*!
-Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.3
+Minecraft × K10 联动接收器 (数字城市管理中心版) - 优化版 v3.3.4
+v3.3.4 更新：
+1. 无 SD 卡或日志文件打开失败时，日志缓冲区增加上限；按换行裁剪，避免内存耗尽或切坏 UTF-8 中文
 v3.3.3 更新：
 1. 环境表格选中行改为深蓝底 + 白色/黄色/青色文字，必要时增加 ▶ 选中标记，
    修复选中项文字与背景颜色接近、看不清的问题
@@ -736,13 +738,23 @@ void appendLog(String msg) {
 }
 
 void flushLogBuffer() {
-    if (!sdOk || logBuffer.length() == 0) return;
+    if (logBuffer.length() == 0) return;
+    // 无 SD 卡时也要限制缓冲区，否则日志会无限增长直到内存耗尽
+    if (!sdOk) {
+        if (logBuffer.length() > 2048) { int cut = logBuffer.length() - 1024; int nl = logBuffer.indexOf('\n', cut); logBuffer = (nl >= 0) ? logBuffer.substring(nl + 1) : ""; }
+        return;
+    }
     File logFile = SD.open("/log.txt", FILE_APPEND);
     if (logFile) {
         logFile.print(logBuffer);
         logFile.close();
         logBuffer = "";
         lastLogFlush = millis();
+    } else if (logBuffer.length() > 2048) {
+        // SD 卡存在但文件打不开时也不能无限增长
+        int cut = logBuffer.length() - 1024;
+        int nl = logBuffer.indexOf('\n', cut);
+        logBuffer = (nl >= 0) ? logBuffer.substring(nl + 1) : "";
     }
 }
 
@@ -1047,7 +1059,7 @@ void handleStatusPage() {
 <!DOCTYPE html><meta charset="utf-8">
 <html>
 <body style="font-family:sans-serif;background:#0A0A1A;color:#CCCCCC;padding:20px;">
-<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.3.3</h2>
+<h2 style="color:#00FFAA;">🎮 K10 MC Bridge v3.3.4</h2>
 <p>✅ 状态：运行中</p>
 <p>📡 IP: )rawliteral" + deviceIP + R"rawliteral(</p>
 <p>🏙️ 城市：)rawliteral" + (cityInitialized ? cityName : "未连接") + R"rawliteral(</p>
@@ -1236,7 +1248,7 @@ void setup() {
     }
     server.begin();
 
-    Serial.println("[系统] K10 MC Bridge v3.3.3 启动完成");
+    Serial.println("[系统] K10 MC Bridge v3.3.4 启动完成");
 }
 
 void loop() {

@@ -31,16 +31,28 @@ public class EconomyManager {
             plugin.saveResource("economy.yml", false);
         }
         
-        if (dataConfig.contains("balances")) {
+        if (dataConfig.isConfigurationSection("balances")) {
             for (String key : dataConfig.getConfigurationSection("balances").getKeys(false)) {
-                UUID uuid = UUID.fromString(key);
+                UUID uuid;
+                try {
+                    uuid = UUID.fromString(key);
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("跳过损坏的经济 UUID: " + key);
+                    continue;
+                }
                 double balance = dataConfig.getDouble("balances." + key);
+                if (!Double.isFinite(balance) || balance < 0) {
+                    plugin.getLogger().warning("跳过非法余额: " + key + " = " + balance);
+                    continue;
+                }
                 balances.put(uuid, balance);
             }
         }
     }
     
     public void saveData() {
+        // 写回前清空旧段，避免损坏/已移除的账户残留
+        dataConfig.set("balances", null);
         for (Map.Entry<UUID, Double> entry : balances.entrySet()) {
             dataConfig.set("balances." + entry.getKey().toString(), entry.getValue());
         }
@@ -125,12 +137,15 @@ public class EconomyManager {
     }
     
     public void setBalance(Player player, double amount) {
+        if (!Double.isFinite(amount) || amount < 0) {
+            return;
+        }
         balances.put(player.getUniqueId(), amount);
     }
     
     public boolean setBalance(Player target, double amount, Player operator) {
-        if (amount < 0) {
-            operator.sendMessage(ChatColor.RED + "余额不能为负数!");
+        if (!Double.isFinite(amount) || amount < 0) {
+            operator.sendMessage(ChatColor.RED + "余额必须是非负有限数字!");
             return false;
         }
         
@@ -141,7 +156,7 @@ public class EconomyManager {
     }
     
     public boolean setBalanceByUUID(UUID uuid, double amount) {
-        if (amount < 0) {
+        if (!Double.isFinite(amount) || amount < 0) {
             return false;
         }
         balances.put(uuid, amount);

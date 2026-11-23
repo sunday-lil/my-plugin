@@ -62,17 +62,28 @@ public class HomeManager {
         }
         
         // 检查配置文件中是否包含家园数据段
-        if (dataConfig.contains("homes")) {
+        if (dataConfig.isConfigurationSection("homes")) {
             // 遍历所有玩家UUID键
             for (String playerUUID : dataConfig.getConfigurationSection("homes").getKeys(false)) {
                 // 将字符串形式的UUID转换为UUID对象
-                UUID uuid = UUID.fromString(playerUUID);
+                UUID uuid;
+                try {
+                    uuid = UUID.fromString(playerUUID);
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("跳过损坏的家园 UUID: " + playerUUID);
+                    continue;
+                }
                 
                 // 创建新的家园位置映射表
                 Map<String, Location> homes = new HashMap<>();
                 
+                org.bukkit.configuration.ConfigurationSection playerSection =
+                        dataConfig.getConfigurationSection("homes." + playerUUID);
+                if (playerSection == null) {
+                    continue;
+                }
                 // 遍历该玩家的所有家园名称
-                for (String homeName : dataConfig.getConfigurationSection("homes." + playerUUID).getKeys(false)) {
+                for (String homeName : playerSection.getKeys(false)) {
                     // 从配置中获取对应家园的位置信息
                     Location location = dataConfig.getLocation("homes." + playerUUID + "." + homeName);
                     
@@ -94,6 +105,8 @@ public class HomeManager {
      * 如果保存失败则记录错误日志
      */
     public void saveData() {
+        // 先清空旧数据，确保删除的家园不会在重启后复活
+        dataConfig.set("homes", null);
         // 遍历所有玩家及其家园数据
         for (Map.Entry<UUID, Map<String, Location>> playerEntry : playerHomes.entrySet()) {
             // 遍历当前玩家的所有家园
@@ -121,6 +134,10 @@ public class HomeManager {
      * @return 设置成功返回true，超出限制返回false
      */
     public boolean setHome(Player player, String homeName) {
+        // 家园名会写入 YAML 路径，点号会把名称拆成嵌套节点
+        if (homeName == null || homeName.isBlank() || homeName.contains(".")) {
+            return false;
+        }
         // 获取玩家UUID
         UUID uuid = player.getUniqueId();
         

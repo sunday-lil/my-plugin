@@ -39,11 +39,16 @@ public class BankManager {
      * 从 bank.yml 加载银行账户数据
      */
     public void loadData() {
-        if (dataConfig.contains("accounts")) {
+        if (dataConfig.isConfigurationSection("accounts")) {
             for (String key : dataConfig.getConfigurationSection("accounts").getKeys(false)) {
                 try {
                     UUID uuid = UUID.fromString(key);
-                    accounts.put(uuid, dataConfig.getDouble("accounts." + key));
+                    double balance = dataConfig.getDouble("accounts." + key);
+                    if (!Double.isFinite(balance) || balance < 0) {
+                        plugin.getLogger().warning("跳过非法银行余额: " + key + " = " + balance);
+                        continue;
+                    }
+                    accounts.put(uuid, balance);
                 } catch (IllegalArgumentException ignored) {
                     // 跳过损坏的 UUID 键
                 }
@@ -56,6 +61,7 @@ public class BankManager {
      * 保存银行账户数据到 bank.yml
      */
     public void saveData() {
+        dataConfig.set("accounts", null);
         for (Map.Entry<UUID, Double> entry : accounts.entrySet()) {
             dataConfig.set("accounts." + entry.getKey().toString(), entry.getValue());
         }
@@ -71,8 +77,12 @@ public class BankManager {
      * 获取玩家银行余额（首次访问自动开设账户并获得初始余额）
      */
     public double getBalance(Player player) {
-        return accounts.computeIfAbsent(player.getUniqueId(),
-                k -> plugin.getConfig().getDouble("bank.initial-balance", 1000.0));
+        double initial = plugin.getConfig().getDouble("bank.initial-balance", 1000.0);
+        if (!Double.isFinite(initial) || initial < 0) {
+            initial = 1000.0;
+        }
+        final double safeInitial = initial;
+        return accounts.computeIfAbsent(player.getUniqueId(), k -> safeInitial);
     }
 
     /**

@@ -129,16 +129,14 @@ public class ShopListener implements Listener {
     }
     
     private void handleSell(Player player, ShopManager.ShopItem item, int amount) {
-        ItemStack itemToSell = new ItemStack(item.getMaterial(), amount);
-        
-        if (!player.getInventory().containsAtLeast(itemToSell, amount)) {
+        if (countStorage(player, item.getMaterial()) < amount) {
             player.sendMessage(ChatColor.RED + "你没有足够的物品来出售!");
             return;
         }
         
         double sellPrice = item.getSellPrice() * amount;
         
-        player.getInventory().removeItem(itemToSell);
+        removeStorage(player, item.getMaterial(), amount);
         plugin.getEconomyManager().deposit(player, sellPrice);
         recordCityTransaction(sellPrice);
 
@@ -166,8 +164,20 @@ public class ShopListener implements Listener {
         
         double sellPrice = item.getSellPrice() * totalAmount;
         
-        ItemStack itemToRemove = new ItemStack(item.getMaterial(), totalAmount);
-        player.getInventory().removeItem(itemToRemove);
+
+        // 只从主背包移除，避免把穿在身上的同材质盔甲/副手物品一起收走
+        int remaining = totalAmount;
+        ItemStack[] contents = player.getInventory().getStorageContents();
+        for (int i = 0; i < contents.length && remaining > 0; i++) {
+            ItemStack stack = contents[i];
+            if (stack != null && stack.getType() == item.getMaterial()) {
+                int take = Math.min(stack.getAmount(), remaining);
+                stack.setAmount(stack.getAmount() - take);
+                if (stack.getAmount() <= 0) contents[i] = null;
+                remaining -= take;
+            }
+        }
+        player.getInventory().setStorageContents(contents);
         plugin.getEconomyManager().deposit(player, sellPrice);
         recordCityTransaction(sellPrice);
 
@@ -203,6 +213,31 @@ public class ShopListener implements Listener {
         return false;
     }
     
+    private int countStorage(Player player, Material material) {
+        int total = 0;
+        for (ItemStack stack : player.getInventory().getStorageContents()) {
+            if (stack != null && stack.getType() == material) {
+                total += stack.getAmount();
+            }
+        }
+        return total;
+    }
+
+    private void removeStorage(Player player, Material material, int amount) {
+        int remaining = amount;
+        ItemStack[] contents = player.getInventory().getStorageContents();
+        for (int i = 0; i < contents.length && remaining > 0; i++) {
+            ItemStack stack = contents[i];
+            if (stack != null && stack.getType() == material) {
+                int take = Math.min(stack.getAmount(), remaining);
+                stack.setAmount(stack.getAmount() - take);
+                if (stack.getAmount() <= 0) contents[i] = null;
+                remaining -= take;
+            }
+        }
+        player.getInventory().setStorageContents(contents);
+    }
+
     private String formatMaterialName(String name) {
         return name.toLowerCase().replace('_', ' ');
     }

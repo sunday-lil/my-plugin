@@ -1,6 +1,6 @@
-# 🤖 项目交接文档（v1.4.0）
+# 🤖 项目交接文档（v1.4.1）
 
-> 最后更新：2026-10-25 · 插件 v1.4.0 · K10 固件 v3.3.3
+> 最后更新：2026-11-23 · 插件 v1.4.1 · K10 固件 v3.3.4
 
 ## 1️⃣ 这是什么
 
@@ -41,7 +41,7 @@ gui/ShopGUI.java              9 格商店
 web/WebServer.java            NanoHTTPD 8080 + /api/config
 resources/config.yml          唯一配置真相源（v1.3.0 已清理死键）
 resources/web/index.html      Schema 驱动的配置面板
-mn.txt                        K10 固件（v3.3.3）
+mn.txt                        K10 固件（v3.3.4）
 ```
 
 三层架构：`commands/` → `managers/` → `listeners/`；GUI 在 `gui/`，Web 在 `web/`，测试在 `src/test/java`。
@@ -69,9 +69,9 @@ mn.txt                        K10 固件（v3.3.3）
 - 事件白名单：`PLAYER_JOIN/QUIT/DEATH/STATUS_CHANGE/MILESTONE/HOUSING_CHANGE/REDSTONE_SURGE`。
 - AP 配网模式没有 `/mc_event`、`/reset`；配网完成重启后才注册业务路由。
 
-## 4️⃣ 当前状态（v1.4.0）
+## 4️⃣ 当前状态（v1.4.1）
 
-- ✅ `mvn clean package` 成功；产物 `target/myplugin-1.4.0.jar`（约 600KB shaded）
+- ✅ `mvn clean package` 成功；产物 `target/myplugin-1.4.1.jar`（约 600KB shaded）
 - ✅ 4 个 JUnit 5 测试通过（金额校验、版本比较）
 - ✅ 修复全新数据目录启动失败（`warps.yml`/`teleport.yml`）
 - ✅ 修复 K10 回执告警刷屏、仪表盘大帧静默丢弃、队列丢唤醒
@@ -96,20 +96,20 @@ mn.txt                        K10 固件（v3.3.3）
 
 ```powershell
 # 编译 + 测试 + shaded JAR（推荐）
-& "E:\IntelliJ IDEA 2026.2.1\plugins\maven-plugin\lib\maven3\bin\mvn.cmd" `
+& "C:\Program Files\JetBrains\IntelliJ IDEA 2026.3\plugins\maven-plugin\lib\maven3\bin\mvn.cmd" `
   -f "E:\minecraft dev\my plugin\pom.xml" clean package
 
 # 仅测试
 mvn test
 
 # 产物
-target/myplugin-1.4.0.jar
+target/myplugin-1.4.1.jar
 ```
 
 - 本机 JDK 26 编译 target 21 会有模块路径警告，不影响。
 - 首次跑测试需要 Maven 能访问仓库（JUnit 5 / Surefire provider）。
 - K10 固件：Arduino IDE 打开 `mn.txt`，板子选 **ESP32-S3-N8R2**，上传。
-- 发布：`git tag v1.4.0 && git push origin main --tags`，再 `gh release create v1.4.0 target/myplugin-1.4.0.jar`。
+- 发布：`git tag v1.4.1 && git push origin main --tags`，再 `gh release create v1.4.1 target/myplugin-1.4.1.jar`。
 
 ## 7️⃣ 环境坑位（重要）
 

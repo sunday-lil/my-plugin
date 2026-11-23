@@ -79,11 +79,17 @@ public class TeleportManager {
         }
         
         // 检查配置文件中是否包含最后位置数据段
-        if (dataConfig.contains("lastLocations")) {
+        if (dataConfig.isConfigurationSection("lastLocations")) {
             // 遍历所有玩家UUID键
             for (String playerUUID : dataConfig.getConfigurationSection("lastLocations").getKeys(false)) {
                 // 将字符串形式的UUID转换为UUID对象
-                UUID uuid = UUID.fromString(playerUUID);
+                UUID uuid;
+                try {
+                    uuid = UUID.fromString(playerUUID);
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("跳过损坏的传送 UUID: " + playerUUID);
+                    continue;
+                }
                 
                 // 从配置中获取对应玩家的最后位置
                 Location location = dataConfig.getLocation("lastLocations." + playerUUID);
@@ -102,6 +108,7 @@ public class TeleportManager {
      * 如果保存失败则记录错误日志
      */
     public void saveData() {
+        dataConfig.set("lastLocations", null);
         // 遍历所有玩家最后位置条目并写入配置对象
         for (Map.Entry<UUID, Location> entry : lastLocations.entrySet()) {
             // 设置配置项：lastLocations.玩家UUID = 位置对象
